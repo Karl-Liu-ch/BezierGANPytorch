@@ -48,7 +48,7 @@ def evaluate(airfoil, cl, return_CL_CD=False):
         return perf
 
 if __name__ == "__main__":
-    cl = 0.7
+    cl = 0.65
     best_perf=32.48872678738876
     airfoilpath = '/work3/s212645/BezierGANPytorch/Airfoils/'
     best_airfoil = None
