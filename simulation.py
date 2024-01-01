@@ -5,44 +5,8 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter
 import logging
-
-def derotate(airfoil):
-    ptail = 0.5 * (airfoil[0,:]+airfoil[-1,:])
-    ptails = np.expand_dims(ptail, axis=0)
-    ptails = np.repeat(ptails, 256, axis=0)
-    i = np.linalg.norm(airfoil - ptails, axis=1).argmax()
-    phead = airfoil[i,:]
-    theta = np.arctan2(-(airfoil[i,1] - ptail[1]), -(airfoil[i,0] - ptail[0]))
-    c = np.cos(theta)
-    s = np.sin(theta)
-    R = np.array([[c, -s], [s, c]])
-    airfoil_R = airfoil
-    airfoil_R -= np.repeat(np.expand_dims(phead, axis=0), 256, axis=0)
-    airfoil_R = np.matmul(airfoil_R, R)
-    return airfoil_R
-
-def Normalize(airfoil):
-    r = np.maximum(airfoil[0,0], airfoil[-1,0])
-    r = float(1.0/r)
-    return airfoil * r
-
-def detect_intersect(airfoil):
-    # Get leading head
-    lh_idx = np.argmin(airfoil[:,0])
-    lh_x = airfoil[lh_idx, 0]
-    # Get trailing head
-    th_x = np.minimum(airfoil[0,0], airfoil[-1,0])
-    # Interpolate
-    f_up = interp1d(airfoil[:lh_idx+1,0], airfoil[:lh_idx+1,1])
-    f_low = interp1d(airfoil[lh_idx:,0], airfoil[lh_idx:,1])
-    xx = np.linspace(lh_x, th_x, num=1000)
-    yy_up = f_up(xx)
-    yy_low = f_low(xx)
-    # Check if intersect or not
-    if np.any(yy_up < yy_low):
-        return True
-    else:
-        return False
+logging.basicConfig(filename='results/perf.log', encoding='utf-8', level=logging.DEBUG)
+from utils import derotate, Normalize, delete_intersect, detect_intersect
 
 def evaluate(airfoil, cl, return_CL_CD=False):
         
@@ -69,14 +33,9 @@ def evaluate(airfoil, cl, return_CL_CD=False):
         xf.airfoil = Airfoil(airfoil[:,0], airfoil[:,1])
         xf.Re = 4.5e4
         xf.max_iter = 200
-        # a, cl, cd, cm, cp = xf.aseq(2, 5, 0.5)
-        # perf = (cl/cd).max()
         a, cd, cm, cp = xf.cl(cl)
         perf = cl/cd
         
-        # if perf < -100 or perf > 300 or cd.min() < 1e-3:
-        #     print('Unsuccessful:', cl.max(), cd.min(), perf)
-        #     perf = np.nan
         if perf < -100 or perf > 300 or cd < 1e-3:
             print('Unsuccessful:', cl, cd, perf)
             perf = np.nan
@@ -89,15 +48,16 @@ def evaluate(airfoil, cl, return_CL_CD=False):
         return perf
 
 if __name__ == "__main__":
-    cl = 0.65
-    best_perf=34.78824390025072
-    airfoilpath = '/work3/s212645/DiffusionAirfoil/Airfoils1D/'
+    cl = 0.7
+    best_perf=32.48872678738876
+    airfoilpath = '/work3/s212645/BezierGANPytorch/Airfoils/'
     best_airfoil = None
-    for i in range(20):
+    for i in range(1000):
         num = str(i).zfill(3)
         airfoils = np.load(airfoilpath+num+'.npy')
+        airfoils = delete_intersect(airfoils)
         for k in range(airfoils.shape[0]):
-            airfoil = airfoils[k]
+            airfoil = airfoils[k,:,:]
             airfoil = derotate(airfoil)
             airfoil = Normalize(airfoil)
             xhat, yhat = savgol_filter((airfoil[:,0], airfoil[:,1]), 10, 3)
@@ -109,5 +69,5 @@ if __name__ == "__main__":
             elif perf > best_perf:
                 best_perf = perf
                 best_airfoil = airfoil
-                np.savetxt('results/airfoil1D.dat', best_airfoil)
+                np.savetxt('results/airfoil.dat', best_airfoil)
                 logging.info(f'perf: {perf}, thickness: {yhat.max()-yhat.min()}')

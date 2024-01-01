@@ -4,11 +4,14 @@ import configparser
 import wexpect
 #import subprocess as sp
 import gc
+import logging
+logging.basicConfig(filename='results/perf.log', encoding='utf-8', level=logging.DEBUG)
 
 import numpy as np
 from scipy.interpolate import interp1d
 
 from utils import safe_remove, create_dir
+from utils import derotate, Normalize, delete_intersect, detect_intersect
 
 
 def compute_coeff(airfoil, reynolds=500000, mach=0, alpha=3, n_iter=200, tmp_dir='tmp'):
@@ -80,24 +83,6 @@ def read_config(config_fname):
     
     return reynolds, mach, alpha, n_iter
 
-def detect_intersect(airfoil):
-    # Get leading head
-    lh_idx = np.argmin(airfoil[:,0])
-    lh_x = airfoil[lh_idx, 0]
-    # Get trailing head
-    th_x = np.minimum(airfoil[0,0], airfoil[-1,0])
-    # Interpolate
-    f_up = interp1d(airfoil[:lh_idx+1,0], airfoil[:lh_idx+1,1])
-    f_low = interp1d(airfoil[lh_idx:,0], airfoil[lh_idx:,1])
-    xx = np.linspace(lh_x, th_x, num=1000)
-    yy_up = f_up(xx)
-    yy_low = f_low(xx)
-    # Check if intersect or not
-    if np.any(yy_up < yy_low):
-        return True
-    else:
-        return False
-
 def evaluate(airfoil, cl, return_CL_CD=False):
     
     # Read airfoil operating conditions from a config file
@@ -161,25 +146,26 @@ def Normalize(airfoil):
     return airfoil * r
     
 if __name__ == "__main__":
-    
-    airfoils = np.load('data/airfoil_interp.npy')
-    airfoil = airfoils[np.random.choice(airfoils.shape[0])]
-    
-    # Read airfoil operating conditions from a config file
-    config_fname = 'op_conditions.ini'
-    reynolds, mach, alpha, n_iter = read_config(config_fname)
-    
-    perf = evaluate(airfoil)
-    print(perf)
-    
-    best_perf = 0
-    for i in range(airfoils.shape[0]):
-        airfoil = airfoils[i,:,:]
-        airfoil = derotate(airfoil)
-        airfoil = Normalize(airfoil)
-        perf = evaluate(airfoil)
-        if perf == np.nan:
-            pass
-        elif perf > best_perf:
-            best_perf = perf
-    print(best_perf)
+    cl = 0.7
+    best_perf=34.78824390025072
+    airfoilpath = 'H:/深度学习/AirfoilsSamples/'
+    best_airfoil = None
+    for i in range(100):
+        num = str(i).zfill(3)
+        airfoils = np.load(airfoilpath+num+'.npy')
+        airfoils = delete_intersect(airfoils)
+        for k in range(airfoils.shape[0]):
+            airfoil = airfoils[k,:,:]
+            airfoil = derotate(airfoil)
+            airfoil = Normalize(airfoil)
+            xhat, yhat = airfoil[:,0], airfoil[:,1]
+            airfoil[:,0] = xhat
+            airfoil[:,1] = yhat
+            perf = evaluate(airfoil, cl)
+            if perf == np.nan:
+                pass
+            elif perf > best_perf:
+                best_perf = perf
+                best_airfoil = airfoil
+                np.savetxt('results/airfoil.dat', best_airfoil)
+                logging.info(f'perf: {perf}, thickness: {yhat.max()-yhat.min()}')

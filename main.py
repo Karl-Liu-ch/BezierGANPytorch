@@ -6,6 +6,7 @@ from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
 import random
 import matplotlib.pyplot as plt
+import platform
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 # torch.manual_seed(7) # cpu
@@ -35,13 +36,13 @@ def Save_model(generator, discrimiator, checkpoint_dir):
     torch.save(generator.state_dict(), checkpoint_dir + '/generator.pth')
     torch.save(discrimiator.state_dict(), checkpoint_dir + '/discrimiator.pth')
 
-def train(X_train, latent_dim = 3, noise_dim = 10, train_steps = 2000, batch_size = 64, save_interval = 0, director = '.', load_models = False):
+def train(X_train, path, latent_dim = 3, noise_dim = 10, train_steps = 2000, batch_size = 64, save_interval = 0, director = '.', load_models = False):
     bounds = (0.0, 1.0)
     X_train = preprocess(X_train)
     # ind = np.random.choice(X_train.shape[0], size=batch_size, replace=False)
     generator = Generator(latent_dim=latent_dim, noise_dim=noise_dim, n_points=X_train.shape[1]).to(device)
     discriminator = Discriminator(latent_dim=latent_dim, n_points=X_train.shape[1]).to(device)
-    checkpoint_dir = "checkpoint/ResNet_{}_{}_{}".format(latent_dim, noise_dim, X_train.shape[1])
+    checkpoint_dir = path + "ResNet_{}_{}_{}".format(latent_dim, noise_dim, X_train.shape[1])
     try:
         os.mkdir(checkpoint_dir)
     except:
@@ -59,14 +60,13 @@ def train(X_train, latent_dim = 3, noise_dim = 10, train_steps = 2000, batch_siz
     X_train = torch.from_numpy(X_train).to(device)
     X_train = TensorDataset(X_train, X_train)
     X_train = DataLoader(X_train, batch_size=batch_size, shuffle=True)
-    for epoch in range(train_steps):
-        learning_rate = 1e-4
-        # if epoch > 100:
-        #     learning_rate = 1e-5
-        # if epoch > 1000:
-        #     learning_rate = 1e-6
-        optim_g = torch.optim.Adam(generator.parameters(), lr=learning_rate)
-        optim_d = torch.optim.Adam(discriminator.parameters(), lr=learning_rate)
+    learning_rate = 3e-4
+    optim_g = torch.optim.Adam(generator.parameters(), lr=learning_rate)
+    optim_d = torch.optim.Adam(discriminator.parameters(), lr=learning_rate)
+    schedulerg = torch.optim.lr_scheduler.CosineAnnealingLR(optim_g, train_steps, eta_min=1e-6)
+    schedulerd = torch.optim.lr_scheduler.CosineAnnealingLR(optim_d, train_steps, eta_min=1e-6)
+    epoch = 0
+    while epoch < train_steps:
         for i, (X_real, label) in enumerate(X_train):
             # train discriminator:
             # train d_real
@@ -131,49 +131,77 @@ def train(X_train, latent_dim = 3, noise_dim = 10, train_steps = 2000, batch_siz
             G_loss.backward()
             optim_g.step()
             # print("traning Generator. G loss: ", G_loss.item())
-
-        if (epoch % 500) == 0:
+        epoch += 1
+        if (epoch % 10) == 0:
             print("saving model, epoch:", epoch)
             Save_model(generator, discriminator, checkpoint_dir)
 
+        schedulerg.step()
+        schedulerd.step()
         print("epoch: ", epoch, "G loss: ", G_loss.item(), "D real loss: ", d_train_real_loss.item(), "D fake loss: ", d_train_fake_loss.item())
 
 def eval(model_path, latent_dim = 3, noise_dim = 10, n_points = 256):
+    print(model_path)
     generator = Generator(latent_dim=latent_dim, noise_dim=noise_dim, n_points=n_points).to(device)
     state_dict = torch.load(model_path)
     generator.load_state_dict(state_dict)
     generator.eval()
     return generator
 
+def sample(generator, batch_size):
+    bounds = (0.0, 1.0)
+    y_latent = np.random.uniform(low=bounds[0], high=bounds[1], size=(batch_size, latent_dim))
+    noise = np.random.normal(scale=0.5, size=(batch_size, noise_dim))
+    y_latent = torch.from_numpy(y_latent).to(device)
+    y_latent = y_latent.float()
+    noise = torch.from_numpy(noise).to(device)
+    noise = noise.float()
+    x_fake_train, cp_train, w_train, ub_train, db_train = generator(y_latent, noise)
+    x_fake_train = x_fake_train.squeeze(dim=-1)
+    airfoil = x_fake_train.detach().cpu().numpy()
+    return airfoil
 
 if __name__ == '__main__':
+    data = np.load('data/airfoil_interp.npy')
+    if platform.system().lower() == 'linux':
+        try:
+            os.mkdir('/work3/s212645/BezierGANPytorch/')
+        except:
+            pass
+    if platform.system().lower() == 'linux':
+        path = '/work3/s212645/BezierGANPytorch/checkpoint/'
+    elif platform.system().lower() == 'windows':
+        path = 'H:/深度学习/checkpoint/'
     try:
-        os.mkdir('checkpoint')
+        os.mkdir(path)
     except:
         pass
+    # train(data, path)
+    
+    checkpoint_dir = path + "ResNet_{}_{}_{}".format(latent_dim, noise_dim, 256)
+    generator = eval(checkpoint_dir + '/generator.pth')
+    
+    B = 2 ** 10
+        
+    airfoil = sample(generator, batch_size=B)[0]
+    fig, axs = plt.subplots(1, 1)
+    axs.plot(airfoil[:,0], airfoil[:,1])
+    axs.set_aspect('equal', 'box')
+    fig.tight_layout()
+    plt.savefig('sample.png')
+    plt.close()
+    
+    if platform.system().lower() == 'linux':
+        path = '/work3/s212645/BezierGANPytorch/Airfoils/'
+    elif platform.system().lower() == 'windows':
+        path = 'H:/深度学习/AirfoilsSamples/'
+    try:
+        os.mkdir(path)
+    except:
+        pass
+        
     for i in range(1000):
         num = str(i).zfill(3)
-        B = 256
-        bounds = (0.0, 1.0)
-        data = np.load('data/airfoil_interp.npy')
-        checkpoint_dir = "checkpoint/ResNET_{}_{}_{}".format(latent_dim, noise_dim, 256)
-        generator = eval(checkpoint_dir + '/generator.pth')
-        y_latent = np.random.uniform(low=bounds[0], high=bounds[1], size=(B, latent_dim))
-        noise = np.random.normal(scale=0.5, size=(B, noise_dim))
-        y_latent = torch.from_numpy(y_latent).to(device)
-        y_latent = y_latent.float()
-        noise = torch.from_numpy(noise).to(device)
-        noise = noise.float()
-        x_fake_train, cp_train, w_train, ub_train, db_train = generator(y_latent, noise)
-        x_fake_train = x_fake_train.squeeze(dim=-1)
-        airfoil = x_fake_train.detach().cpu().numpy()
-        np.save('sample/' + num + '.npy', airfoil)
-    
-    # fig, axs = plt.subplots(1, 1)
-    # axs.plot(airfoil[:,0], airfoil[:,1])
-    # axs.set_aspect('equal', 'box')
-    # fig.tight_layout()
-    # plt.savefig('sample.png')
-    # plt.close()
-
-    # train(data)
+        airfoil = sample(generator, batch_size=256)
+        np.save(path + num + '.npy', airfoil)
+        print(num + ' saved')

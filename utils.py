@@ -9,12 +9,98 @@ import time
 import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.metrics import mean_squared_error
-import tensorflow as tf
+# import tensorflow as tf
 
 import matplotlib
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
+from scipy.interpolate import splev, splprep, interp1d
+from scipy.integrate import cumtrapz
+
+from scipy.signal import savgol_filter
+
+def interpolate(Q, N, k, D=20, resolution=1000):
+    ''' Interpolate N points whose concentration is based on curvature. '''
+    res, fp, ier, msg = splprep(Q.T, u=None, k=k, s=1e-6, per=0, full_output=1)
+    tck, u = res
+    uu = np.linspace(u.min(), u.max(), resolution)
+    x, y = splev(uu, tck, der=0)
+    dx, dy = splev(uu, tck, der=1)
+    ddx, ddy = splev(uu, tck, der=2)
+    cv = np.abs(ddx*dy - dx*ddy)/(dx*dx + dy*dy)**1.5 + D
+    cv_int = cumtrapz(cv, uu, initial=0)
+    fcv = interp1d(cv_int, uu)
+    cv_int_samples = np.linspace(0, cv_int.max(), N)
+    u_new = fcv(cv_int_samples)
+    x_new, y_new = splev(u_new, tck, der=0)
+    xy_new = np.vstack((x_new, y_new)).T
+    return xy_new
+
+def detect_intersect(airfoil):
+    # Get leading head
+    lh_idx = np.argmin(airfoil[:,0])
+    lh_x = airfoil[lh_idx, 0]
+    # Get trailing head
+    th_x = np.minimum(airfoil[0,0], airfoil[-1,0])
+    # Interpolate
+    f_up = interp1d(airfoil[:lh_idx+1,0], airfoil[:lh_idx+1,1])
+    f_low = interp1d(airfoil[lh_idx:,0], airfoil[lh_idx:,1])
+    xx = np.linspace(lh_x, th_x, num=1000)
+    yy_up = f_up(xx)
+    yy_low = f_low(xx)
+    # Check if intersect or not
+    if np.any(yy_up < yy_low):
+        return True
+    else:
+        return False
+
+def delete_intersect(samples):
+    indexs = []
+    for i in range(samples.shape[0]):
+        xhat, yhat = savgol_filter((samples[i,:,0], samples[i,:,1]), 10, 3)
+        samples[i,:,0] = xhat
+        samples[i,:,1] = yhat
+        af = samples[i,:,:]
+        if detect_intersect(af):
+            indexs.append(i)
+    for i in indexs:
+        xhat, yhat = savgol_filter((samples[i,:,0], samples[i,:,1]), 10, 3)
+        samples[i,:,0] = xhat
+        samples[i,:,1] = yhat
+        af = samples[i,:,:]
+        point = 1.0
+        while detect_intersect(af) and af.shape[0] > 200:
+            indexs = []
+            for index in range(af.shape[0]):
+                if af[index,0] > point:
+                    indexs.append(index)
+            af = np.delete(af, indexs, axis=0)
+            point -= 0.01
+        af = interpolate(af, 256, 3)
+        af = Normalize(af)
+        samples[i,:,:] = af
+    return samples
+
+def derotate(airfoil):
+    ptail = 0.5 * (airfoil[0,:]+airfoil[-1,:])
+    ptails = np.expand_dims(ptail, axis=0)
+    ptails = np.repeat(ptails, 256, axis=0)
+    i = np.linalg.norm(airfoil - ptails, axis=1).argmax()
+    phead = airfoil[i,:]
+    theta = np.arctan2(-(airfoil[i,1] - ptail[1]), -(airfoil[i,0] - ptail[0]))
+    c = np.cos(theta)
+    s = np.sin(theta)
+    R = np.array([[c, -s], [s, c]])
+    airfoil_R = airfoil
+    airfoil_R -= np.repeat(np.expand_dims(phead, axis=0), 256, axis=0)
+    airfoil_R = np.matmul(airfoil_R, R)
+    return airfoil_R
+
+def Normalize(airfoil):
+    r = np.maximum(airfoil[0,0], airfoil[-1,0])
+    r = float(1.0/r)
+    return airfoil * r
 
 def convert_sec(sec):
     if sec < 60:
@@ -85,11 +171,11 @@ def create_dir(path):
     if not os.path.isdir(path):
         os.mkdir(path)
         
-def get_n_vars():
-    n_vars = 0
-    for v in tf.global_variables():
-        n_vars += np.prod(v.get_shape().as_list())
-    return n_vars
+# def get_n_vars():
+#     n_vars = 0
+#     for v in tf.global_variables():
+#         n_vars += np.prod(v.get_shape().as_list())
+#     return n_vars
 
 def train_test_plit(X, split=0.8):
     # Split training and test data

@@ -6,6 +6,65 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 EPSILON = 1e-7
 
+
+class SNLinear(nn.Module):
+    def __init__(self, in_features, out_features, bias = True):
+        super().__init__()
+        self.linear = nn.Linear(in_features=in_features,
+                                out_features=out_features, 
+                                bias=True)
+        nn.init.xavier_uniform_(self.linear.weight.data, 1.)
+    
+    def forward(self, x):
+        return self.linear(x)
+
+class SNConv2d(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size = 1,
+        stride = 1,
+        padding = 0,
+        dilation = 1,
+        groups: int = 1,
+        bias: bool = True,
+        padding_mode: str = 'zeros',  # TODO: refine this type
+        device=None,
+        dtype=None
+    ):
+        super().__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, 
+        dilation = 1, groups = 1, bias=bias)
+        nn.init.xavier_uniform_(self.conv.weight.data, 1.)
+        
+    def forward(self, input):
+        return self.conv(input)
+
+class SNConvTranspose(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size = 1,
+        stride = 1,
+        padding = 0,
+        dilation = 1,
+        groups: int = 1,
+        bias: bool = True,
+        padding_mode: str = 'zeros',  # TODO: refine this type
+        device=None,
+        dtype=None
+    ):
+        super().__init__()
+        self.conv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, 
+        dilation = 1, groups = 1, bias=bias)
+        nn.init.xavier_uniform_(self.conv.weight.data, 1.)
+        
+    def forward(self, input):
+        return self.conv(input)
+
+
 class Res_Block(nn.Module):
     def __init__(self, in_channel, out_channel):
         super(Res_Block, self).__init__()
@@ -177,8 +236,8 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
         def Conv(in_channel, out_channel):
             layer = []
-            layer.append(nn.Conv2d(in_channel, out_channel, kernel_size=self.kernel_size, stride=(1, 2), padding=(1,1)))
-            layer.append(nn.BatchNorm2d(out_channel, momentum=0.9))
+            layer.append(SNConv2d(in_channel, out_channel, kernel_size=self.kernel_size, stride=(1, 2), padding=(1,1)))
+            # layer.append(nn.BatchNorm2d(out_channel, momentum=0.9))
             layer.append(nn.LeakyReLU(0.2))
             layer.append(nn.Dropout(self.dropout))
             return layer
@@ -197,18 +256,18 @@ class Discriminator(nn.Module):
         )
         self.Dense = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(self.depth * pow(2, 5) * int(self.n_point * 2/64), 1024),
-            nn.BatchNorm1d(1024, momentum=0.9),
+            SNLinear(self.depth * pow(2, 5) * int(self.n_point * 2/64), 1024),
+            # nn.BatchNorm1d(1024, momentum=0.9),
             nn.LeakyReLU(0.2)
         )
-        self.dense_d = nn.Linear(1024, 1)
+        self.dense_d = SNLinear(1024, 1)
         self.dense_q = nn.Sequential(
-            nn.Linear(1024, 128),
-            nn.BatchNorm1d(128, momentum=0.9),
+            SNLinear(1024, 128),
+            # nn.BatchNorm1d(128, momentum=0.9),
             nn.LeakyReLU(0.2)
         )
-        self.dense_q_mean = nn.Linear(128, self.latent_dim)
-        self.dense_q_logstd = nn.Linear(128, self.latent_dim)
+        self.dense_q_mean = SNLinear(128, self.latent_dim)
+        self.dense_q_logstd = SNLinear(128, self.latent_dim)
 
     def forward(self, x):
         # x:[bz, n_points, 2, 1]
