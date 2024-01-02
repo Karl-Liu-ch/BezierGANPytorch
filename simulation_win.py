@@ -151,6 +151,7 @@ if __name__ == "__main__":
     airfoilpath = 'H:/深度学习/AirfoilsSamples/'
     best_airfoil = None
     for i in reversed(range(100)):
+        logging.info(f'files: {i}')
         num = str(i).zfill(3)
         airfoils = np.load(airfoilpath+num+'.npy')
         airfoils = delete_intersect(airfoils)

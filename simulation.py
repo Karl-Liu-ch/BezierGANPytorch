@@ -53,6 +53,7 @@ if __name__ == "__main__":
     airfoilpath = '/work3/s212645/BezierGANPytorch/Airfoils/'
     best_airfoil = None
     for i in range(1000):
+        logging.info(f'files: {i}')
         num = str(i).zfill(3)
         airfoils = np.load(airfoilpath+num+'.npy')
         airfoils = delete_intersect(airfoils)
