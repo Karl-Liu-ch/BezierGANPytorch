@@ -147,10 +147,10 @@ def Normalize(airfoil):
     
 if __name__ == "__main__":
     cl = 0.67
-    best_perf=34.78824390025072
+    best_perf=36.85331979291854
     airfoilpath = 'H:/深度学习/AirfoilsSamples/'
     best_airfoil = None
-    for i in range(100):
+    for i in reversed(range(100)):
         num = str(i).zfill(3)
         airfoils = np.load(airfoilpath+num+'.npy')
         airfoils = delete_intersect(airfoils)
