@@ -150,7 +150,7 @@ if __name__ == "__main__":
     best_perf=36.85331979291854
     airfoilpath = 'H:/深度学习/AirfoilsSamples/'
     best_airfoil = None
-    for i in reversed(range(100)):
+    for i in reversed(range(1000)):
         logging.info(f'files: {i}')
         num = str(i).zfill(3)
         airfoils = np.load(airfoilpath+num+'.npy')
