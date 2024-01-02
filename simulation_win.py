@@ -147,7 +147,7 @@ def Normalize(airfoil):
     
 if __name__ == "__main__":
     cl = 0.67
-    best_perf=36.85331979291854
+    best_perf=37.63900880934652
     airfoilpath = 'H:/深度学习/AirfoilsSamples/'
     best_airfoil = None
     for i in reversed(range(1000)):

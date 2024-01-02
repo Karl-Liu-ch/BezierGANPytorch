@@ -49,7 +49,7 @@ def evaluate(airfoil, cl, Re = 5e4, return_CL_CD=False):
 
 if __name__ == "__main__":
     cl = 0.67
-    best_perf=34.676552866269304
+    best_perf=37.63900880934652
     airfoilpath = '/work3/s212645/BezierGANPytorch/Airfoils/'
     best_airfoil = None
     for i in range(1000):
