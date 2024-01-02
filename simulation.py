@@ -8,7 +8,7 @@ import logging
 logging.basicConfig(filename='results/perf.log', encoding='utf-8', level=logging.DEBUG)
 from utils import derotate, Normalize, delete_intersect, detect_intersect
 
-def evaluate(airfoil, cl, return_CL_CD=False):
+def evaluate(airfoil, cl, Re = 5e4, return_CL_CD=False):
         
     if detect_intersect(airfoil):
         print('Unsuccessful: Self-intersecting!')
@@ -31,7 +31,7 @@ def evaluate(airfoil, cl, return_CL_CD=False):
     else:
         xf = XFoil()
         xf.airfoil = Airfoil(airfoil[:,0], airfoil[:,1])
-        xf.Re = 4.5e4
+        xf.Re = Re
         xf.max_iter = 200
         a, cd, cm, cp = xf.cl(cl)
         perf = cl/cd
@@ -48,8 +48,8 @@ def evaluate(airfoil, cl, return_CL_CD=False):
         return perf
 
 if __name__ == "__main__":
-    cl = 0.65
-    best_perf=32.48872678738876
+    cl = 0.67
+    best_perf=34.676552866269304
     airfoilpath = '/work3/s212645/BezierGANPytorch/Airfoils/'
     best_airfoil = None
     for i in range(1000):
@@ -63,11 +63,15 @@ if __name__ == "__main__":
             xhat, yhat = savgol_filter((airfoil[:,0], airfoil[:,1]), 10, 3)
             airfoil[:,0] = xhat
             airfoil[:,1] = yhat
-            perf = evaluate(airfoil, cl)
-            if perf == np.nan:
+            try:
+                perf = evaluate(airfoil, cl)
+                if perf == np.nan:
+                    pass
+                elif perf > best_perf:
+                    best_perf = perf
+                    best_airfoil = airfoil
+                    np.savetxt('results/airfoil.dat', best_airfoil)
+                    logging.info(f'perf: {perf}, thickness: {yhat.max()-yhat.min()}')
+            except:
                 pass
-            elif perf > best_perf:
-                best_perf = perf
-                best_airfoil = airfoil
-                np.savetxt('results/airfoil.dat', best_airfoil)
-                logging.info(f'perf: {perf}, thickness: {yhat.max()-yhat.min()}')
+        

@@ -83,10 +83,10 @@ def read_config(config_fname):
     
     return reynolds, mach, alpha, n_iter
 
-def evaluate(airfoil, cl, return_CL_CD=False):
+def evaluate(airfoil, cl, Re = 5e4, return_CL_CD=False):
     
     # Read airfoil operating conditions from a config file
-    reynolds = 4.5e4
+    reynolds = Re
     mach = 0.01
     n_iter = 200
     
@@ -146,7 +146,7 @@ def Normalize(airfoil):
     return airfoil * r
     
 if __name__ == "__main__":
-    cl = 0.7
+    cl = 0.67
     best_perf=34.78824390025072
     airfoilpath = 'H:/深度学习/AirfoilsSamples/'
     best_airfoil = None
