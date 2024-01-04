@@ -150,6 +150,7 @@ if __name__ == "__main__":
     best_perf=37.63900880934652
     airfoilpath = 'H:/深度学习/AirfoilsSamples/'
     best_airfoil = None
+    n=0
     for i in reversed(range(1000)):
         logging.info(f'files: {i}')
         num = str(i).zfill(3)
@@ -170,3 +171,8 @@ if __name__ == "__main__":
                 best_airfoil = airfoil
                 np.savetxt('results/airfoil.dat', best_airfoil)
                 logging.info(f'perf: {perf}, thickness: {yhat.max()-yhat.min()}')
+            if perf > 35:
+                nn = str(n).zfill(3)
+                np.savetxt(f'samples/airfoilwin{nn}.dat', airfoil)
+                logging.info(f'perf: {perf}, n: {nn}')
+                n += 1

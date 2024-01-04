@@ -8,6 +8,7 @@ import random
 import matplotlib.pyplot as plt
 import platform
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 
 # torch.manual_seed(7) # cpu
 # # torch.cuda.manual_seed(7) #gpu
@@ -181,7 +182,7 @@ if __name__ == '__main__':
     checkpoint_dir = path + "ResNet_{}_{}_{}".format(latent_dim, noise_dim, 256)
     generator = eval(checkpoint_dir + '/generator.pth')
     
-    B = 2 ** 10
+    B = 2 ** 8
         
     airfoil = sample(generator, batch_size=B)[0]
     fig, axs = plt.subplots(1, 1)
@@ -201,7 +202,7 @@ if __name__ == '__main__':
         pass
         
     for i in range(1000):
-        num = str(i).zfill(3)
+        num = str(i+1000).zfill(3)
         airfoil = sample(generator, batch_size=256)
         np.save(path + num + '.npy', airfoil)
         print(num + ' saved')
