@@ -1,39 +1,40 @@
 import numpy as np
 from xfoil import XFoil
 from xfoil.model import Airfoil
-import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter
 import logging
 logging.basicConfig(filename='results/perf.log', encoding='utf-8', level=logging.DEBUG)
 from utils import *
 
-def evaluate(airfoil, cl, Re = 5e4, return_CL_CD=False):
+def evaluate(airfoil, cl = 0.65, Re1 = 5.8e4, Re2 = 4e5, lamda = 3, return_CL_CD=False, check_thickness = True):
         
     if detect_intersect(airfoil):
-        print('Unsuccessful: Self-intersecting!')
+        # print('Unsuccessful: Self-intersecting!')
         perf = np.nan
-        CL = np.nan
+        R = np.nan
         CD = np.nan
         
-    elif abs(airfoil[:128,1] - np.flip(airfoil[128:,1])).max() < 0.055:
-        print('Unsuccessful: Too thin!')
+    elif (cal_thickness(airfoil) < 0.06 or cal_thickness(airfoil) > 0.09) and check_thickness:
+        # print('Unsuccessful: Too thin!')
         perf = np.nan
-        CL = np.nan
+        R = np.nan
         CD = np.nan
     
     elif np.abs(airfoil[0,0]-airfoil[-1,0]) > 0.01 or np.abs(airfoil[0,1]-airfoil[-1,1]) > 0.01:
-        print('Unsuccessful:', (airfoil[0,0],airfoil[-1,0]), (airfoil[0,1],airfoil[-1,1]))
+        # print('Unsuccessful:', (airfoil[0,0],airfoil[-1,0]), (airfoil[0,1],airfoil[-1,1]))
         perf = np.nan
-        CL = np.nan
+        R = np.nan
         CD = np.nan
         
     else:
         xf = XFoil()
+        xf.print = 0
         airfoil = setupflap(airfoil, theta=-2)
         xf.airfoil = Airfoil(airfoil[:,0], airfoil[:,1])
-        xf.Re = 4e6
-        xf.max_iter = 2000
+        xf.Re = Re2
+        xf.M = 0.11
+        xf.max_iter = 200
         a, CL, CD, cm, cp = xf.aseq(-2, 2, 0.5)
         CD = CD[~np.isnan(CD)]
         try:
@@ -43,73 +44,78 @@ def evaluate(airfoil, cl, Re = 5e4, return_CL_CD=False):
             
         airfoil = setflap(airfoil, theta=2)
         xf.airfoil = Airfoil(airfoil[:,0], airfoil[:,1])
-        xf.Re = Re
-        xf.max_iter = 2000
-        # a, cl, cd, cm, cp = xf.aseq(2, 5, 0.5)
-        a, cl, cd, cm, cp = xf.cseq(0.6, 0.9, 0.02)
+        xf.Re = Re1
+        xf.M = 0.015
+        xf.max_iter = 200
+        a, cd, cm, cp = xf.cl(cl)
         perf = cl/cd
-        perf = perf[~np.isnan(perf)]
-        try:
-            perf = (perf).max()
-        except:
+        R = cd + CD * lamda
+        if perf < -100 or perf > 300 or cd < 1e-3:
             perf = np.nan
-        
-        
-        if perf < -100 or perf > 300 or cd.min() < 1e-3:
-            print('Unsuccessful:', cl.max(), cd.min(), perf)
-            perf = np.nan
-        # if perf < -100 or perf > 300 or cd < 1e-3:
-        #     print('Unsuccessful:', cl, cd, perf)
-        #     perf = np.nan
         elif not np.isnan(perf):
-            print('Successful: CL/CD={:.4f}'.format(perf))
+            print('Successful: CL/CD={:.4f}, R={}'.format(perf, R))
             
     if return_CL_CD:
         return perf, cl.max(), cd.min()
     else:
-        return perf, CD
+        return perf, CD, airfoil, R
 
 if __name__ == "__main__":
-    perf_BL = 35.981436463391404
-    CD_BL = 0.004539919085800648
-    cl = 0.67
-    best_perf=37.63900880934652
-    airfoilpath = '/work3/s212645/BezierGANPytorch/Airfoils/'
+    R_BL = 0.031195905059576035
+    perf_BL = 39.06369801476684
+    CD_BL = 0.004852138459682465
+    cl = 0.65
+    best_perf=perf_BL
     best_airfoil = None
-    n=108
-    m = 0
-    count = 219
-    for i in range(1000):
-        logging.info(f'files: {i+count}')
-        num = str(i+count).zfill(3)
+    try:
+        log = np.loadtxt('results/simlog.txt')
+        i = int(log[0])
+        k = int(log[1])
+        m = int(log[2])
+    except:
+        m = 0
+        i = 0
+        k = 0
+    name = 'Airfoils'
+    airfoilpath = '/work3/s212645/BezierGANPytorch/'+name+'/'
+
+    print(f'i: {i}, k: {k}, m: {m}')
+    while i < 100:
+        f = open('results/simperf.log', 'a')
+        f.write(f'files: {i}\n')
+        f.close()
+        num = str(i).zfill(3)
         airfoils = np.load(airfoilpath+num+'.npy')
         airfoils = delete_intersect(airfoils)
-        for k in range(airfoils.shape[0]):
+        while k < airfoils.shape[0]:
             airfoil = airfoils[k,:,:]
             airfoil = derotate(airfoil)
             airfoil = Normalize(airfoil)
             xhat, yhat = savgol_filter((airfoil[:,0], airfoil[:,1]), 10, 3)
             airfoil[:,0] = xhat
             airfoil[:,1] = yhat
-            try:
-                perf, CD = evaluate(airfoil, cl)
-                if perf == np.nan:
-                    pass
-                elif perf > best_perf:
-                    best_perf = perf
-                    best_airfoil = airfoil
-                    np.savetxt('results/airfoil.dat', best_airfoil)
-                    logging.info(f'perf: {perf}, cd: {CD}, thickness: {yhat.max()-yhat.min()}')
-                if perf > 35:
-                    nn = str(n).zfill(3)
-                    np.savetxt(f'samples/airfoil{nn}.dat', airfoil)
-                    logging.info(f'perf: {perf}, cd: {CD}, n: {nn}')
-                    n += 1
-                if perf > perf_BL and CD < CD_BL:
-                    mm = str(m).zfill(3)
-                    np.savetxt(f'BETTER/airfoil{mm}.dat', airfoil)
-                    logging.info(f'perf: {perf}, cd: {CD}, n: {mm}')
-                    m += 1
-            except:
+            perf, CD, af, R = evaluate(airfoil, cl)
+            if perf == np.nan:
                 pass
-        
+            else:
+                if R < R_BL:
+                    mm = str(m).zfill(3)
+                    np.savetxt(f'BETTER/airfoil{mm}.dat', airfoil, header=f'airfoil{mm}', comments="")
+                    np.savetxt(f'BETTER/airfoil{mm}F.dat', af, header=f'airfoil{mm}F', comments="")
+                    f = open('results/simperf.log', 'a')
+                    f.write(f'perf: {perf}, R: {R}, better m: {mm}, i: {i}, k: {k}\n')
+                    f.close()
+                    m += 1
+                if perf > perf_BL:
+                    mm = str(m).zfill(3)
+                    np.savetxt(f'samples/airfoil{mm}.dat', airfoil, header=f'airfoil{mm}', comments="")
+                    np.savetxt(f'samples/airfoil{mm}F.dat', af, header=f'airfoil{mm}F', comments="")
+                    f = open('results/simperf.log', 'a')
+                    f.write(f'perf: {perf}, R: {R}, better m: {mm}, i: {i}, k: {k}\n')
+                    f.close()
+                    m += 1
+            k += 1
+            log = np.array([i, k, m])
+            np.savetxt('results/simlog.txt', log)
+        k = 0
+        i += 1

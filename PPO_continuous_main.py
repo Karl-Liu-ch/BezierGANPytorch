@@ -41,11 +41,11 @@ def main(args, env, number, seed):
     torch.manual_seed(seed)
     env_name = 'Airfoil'
 
-    args.state_dim = 512+13
+    args.state_dim = 512
     args.action_dim = 13
     args.hidden_width = 256
-    args.max_action = float(0.1)
-    args.max_episode_steps = 200  # Maximum number of steps per episode
+    args.max_action = float(1)
+    args.max_episode_steps = 100  # Maximum number of steps per episode
     print("state_dim={}".format(args.state_dim))
     print("action_dim={}".format(args.action_dim))
     print("max_action={}".format(args.max_action))
@@ -80,7 +80,7 @@ def main(args, env, number, seed):
             reward_scaling.reset()
         episode_steps = 0
         done = False
-        while not done:
+        while episode_steps < args.max_episode_steps:
             episode_steps += 1
             a, a_logprob = agent.choose_action(s)  # Action and the corresponding log probability
             if args.policy_dist == "Beta":
@@ -129,16 +129,16 @@ def main(args, env, number, seed):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Hyperparameters Setting for PPO-continuous")
-    parser.add_argument("--max_train_steps", type=int, default=int(100), help=" Maximum number of training steps")
+    parser.add_argument("--max_train_steps", type=int, default=int(10000), help=" Maximum number of training steps")
     parser.add_argument("--evaluate_freq", type=float, default=200, help="Evaluate the policy every 'evaluate_freq' steps")
     parser.add_argument("--save_freq", type=int, default=20, help="Save frequency")
     parser.add_argument("--policy_dist", type=str, default="Gaussian", help="Beta or Gaussian")
-    parser.add_argument("--batch_size", type=int, default=2048, help="Batch size")
+    parser.add_argument("--batch_size", type=int, default=64, help="Batch size")
     parser.add_argument("--mini_batch_size", type=int, default=64, help="Minibatch size")
     parser.add_argument("--hidden_width", type=int, default=64, help="The number of neurons in hidden layers of the neural network")
     parser.add_argument("--lr_a", type=float, default=3e-4, help="Learning rate of actor")
     parser.add_argument("--lr_c", type=float, default=3e-4, help="Learning rate of critic")
-    parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
+    parser.add_argument("--gamma", type=float, default=0.97, help="Discount factor")
     parser.add_argument("--lamda", type=float, default=0.95, help="GAE parameter")
     parser.add_argument("--epsilon", type=float, default=0.2, help="PPO clip parameter")
     parser.add_argument("--K_epochs", type=int, default=10, help="PPO parameter")
@@ -155,7 +155,4 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    # env_name = ['BipedalWalker-v3', 'HalfCheetah-v2', 'Hopper-v2', 'Walker2d-v2']
-    # env_index = 1
-    # main(args, env_name=env_name[env_index], number=1, seed=10)
     main(args, env=OptimEnv(), number=1, seed=10)
