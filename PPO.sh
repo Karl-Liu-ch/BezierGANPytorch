@@ -3,7 +3,7 @@
 ### –- specify queue --
 #BSUB -q gpuv100
 ### -- set the job Name --
-#BSUB -J PPO_Diff
+#BSUB -J ppo_bezier
 ### -- ask for number of cores (default: 1) --
 #BSUB -n 8
 ### -- specify that the cores must be on the same host --
@@ -24,8 +24,8 @@
 #BSUB -B
 ### -- Specify the output and error file. %J is the job-id --
 ### -- -o and -e mean append, -oo and -eo mean overwrite --
-#BSUB -o PPO_Diff%J.out
-#BSUB -e PPO_Diff%J.err
+#BSUB -o ppo_bezier%J.out
+#BSUB -e ppo_bezier%J.err
 # -- end of LSF options --
 
 nvidia-smi
@@ -38,4 +38,4 @@ conda activate pytorch
 
 cd /zhome/02/b/164706/Master_Courses/2023_Fall/BezierGANPytorch
 export PYTHONUNBUFFERED=1
-python -u PPO_continuous_main.py
+python -u RL_algorithm.py --agent ppo
