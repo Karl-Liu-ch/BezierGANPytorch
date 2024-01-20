@@ -4,13 +4,15 @@ import torch
 from agent.PPOAgent import *
 total_test_episodes = 10    # total num of testing episodes
 from Environment import OptimEnv
-from pathlib import Path
 import argparse
+import os
 parser = argparse.ArgumentParser(description="Matlab Simscape")
+parser.add_argument("--gpu_id", type=str, default='0', help='gpu devices')
 parser.add_argument('--version', type=str, default='Dronesimscape.slx')
-opt = parser.parse_args()
+args = parser.parse_args()
+os.environ["CUDA_DEVICE_ORDER"] = 'PCI_BUS_ID'
+os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
 
-model_path=opt.version
 K_epochs = 80               # update policy for K epochs
 eps_clip = 0.2              # clip parameter for PPO
 gamma = 0.97              # discount factor
@@ -32,7 +34,7 @@ max_training_timesteps = int(1e8)   # break training loop if timeteps > max_trai
 
 print_freq = max_ep_len * 2     # print avg reward in the interval (in num timesteps)
 log_freq = max_ep_len * 2       # log avg reward in the interval (in num timesteps)
-save_model_freq = int(2e4)      # save model frequency (in num timesteps)
+save_model_freq = int(2e2)      # save model frequency (in num timesteps)
 
 action_std = None
 

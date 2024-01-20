@@ -8,7 +8,7 @@ import random
 import matplotlib.pyplot as plt
 import platform
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 # torch.manual_seed(7) # cpu
 # # torch.cuda.manual_seed(7) #gpu
@@ -161,29 +161,27 @@ def sample(generator, batch_size):
     x_fake_train = x_fake_train.squeeze(dim=-1)
     airfoil = x_fake_train.detach().cpu().numpy()
     return airfoil
-
-if __name__ == '__main__':
-    data = np.load('data/airfoil_interp.npy')
-    if platform.system().lower() == 'linux':
-        try:
-            os.mkdir('/work3/s212645/BezierGANPytorch/')
-        except:
-            pass
-    if platform.system().lower() == 'linux':
-        path = '/work3/s212645/BezierGANPytorch/checkpoint/'
-    elif platform.system().lower() == 'windows':
-        path = 'H:/深度学习/checkpoint/'
+data = np.load('data/airfoil_interp.npy')
+if platform.system().lower() == 'linux':
     try:
-        os.mkdir(path)
+        os.mkdir('/work3/s212645/BezierGANPytorch/')
     except:
         pass
-    # train(data, path)
-    
-    checkpoint_dir = path + "ResNet_{}_{}_{}".format(latent_dim, noise_dim, 256)
-    generator = eval(checkpoint_dir + '/generator.pth')
+if platform.system().lower() == 'linux':
+    path = '/work3/s212645/BezierGANPytorch/checkpoint/'
+elif platform.system().lower() == 'windows':
+    path = 'H:/深度学习/checkpoint/'
+try:
+    os.mkdir(path)
+except:
+    pass
+checkpoint_dir = path + "ResNet_{}_{}_{}".format(latent_dim, noise_dim, 256)
+generator = eval(checkpoint_dir + '/generator.pth')
+
+if __name__ == '__main__':
     
     B = 2 ** 8
-        
+    # train(data, path)
     airfoil = sample(generator, batch_size=B)[0]
     fig, axs = plt.subplots(1, 1)
     axs.plot(airfoil[:,0], airfoil[:,1])

@@ -1,12 +1,17 @@
 import torch
 from agent.TD3 import *
 import math
+import os
 from Environment import OptimEnv
 import argparse
 parser = argparse.ArgumentParser(description="Matlab Simscape")
 parser.add_argument('--version', type=str, default='Dronesimscape.slx')
 parser.add_argument("--expl_noise", default=0.1, type=float)
+parser.add_argument("--gpu_id", type=str, default='0', help='path log files')
 opt = parser.parse_args()
+os.environ["CUDA_DEVICE_ORDER"] = 'PCI_BUS_ID'
+os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu_id
+
 model_path=opt.version
 from pathlib import Path
 import warnings
@@ -22,6 +27,10 @@ lr_critic = 0.001           # learning rate for critic
 td3_agent = TD3(state_dim=512, action_dim=13, max_action = 1.0, policy_freq=2)
 env_name = 'Airfoil'
 directory = "agent/TD3_preTrained/" + env_name + '/'
+try:
+    os.mkdir(directory)
+except:
+    pass
 checkpoint_path = directory + "TD3_{}.pth".format(env_name)
 try:
     td3_agent.load(checkpoint_path)
@@ -50,10 +59,24 @@ K_epochs = 40
 log_running_reward = 0
 log_running_episodes = 0
 
+def sample_action():
+    bounds = (0.0, 1.0)
+    latent_dim = 3
+    noise_dim = 10
+    y_latent = np.random.uniform(low=bounds[0], high=bounds[1], size=(1, latent_dim))
+    noise = np.random.normal(scale=0.5, size=(1, noise_dim))
+    y_latent = torch.from_numpy(y_latent).to(device)
+    y_latent = y_latent.float()
+    noise = torch.from_numpy(noise).to(device)
+    noise = noise.float()
+    noise = torch.concat([noise, y_latent], dim=-1)
+    noise = noise.squeeze(dim=0)
+    return noise.detach().cpu().numpy()
+
 time_step = 0
 i_episode = 0
-action_dim = 10
-replay_buffer = ReplayBuffer(state_dim=19, action_dim=action_dim)
+action_dim = 13
+replay_buffer = ReplayBuffer(state_dim=512, action_dim=action_dim)
 episode_timesteps  = 0
 episode_num = 0
 # training loop
@@ -62,19 +85,13 @@ for time_step in range(int(max_training_timesteps)):
     episode_timesteps += 1
     current_ep_reward = 0
     
-    if time_step < 2e3:
-        action = env.action_space.sample()
+    if time_step < 2e2:
+        action = sample_action()
     else:
-        action = (td3_agent.select_action(state)
-                + np.random.normal(0, max_action_np * opt.expl_noise, size=action_dim)
-            )
-        action = np.clip(action, a_min=-max_action_np, a_max=max_action_np, dtype = np.float32)
+        action = td3_agent.select_action(state)
     
-    action = output2action(action)
     new_state, reward, done, _ = env.step(action)
-    pose = np.array([new_state[3], new_state[5], new_state[7]])
-    pose = np.array([state[3], state[5], state[7]])
-    if np.linalg.norm(env.desired_pose - pose) < 0.01:
+    if done and episode_timesteps < max_ep_len:
         done_bool = 1
     else:
         done_bool = 0
@@ -86,7 +103,7 @@ for time_step in range(int(max_training_timesteps)):
     current_ep_reward += reward
 
     # update PPO agent
-    if time_step > 2e3:
+    if time_step > 2e2:
         # print('training')
         td3_agent.train(replay_buffer)
         
@@ -98,7 +115,7 @@ for time_step in range(int(max_training_timesteps)):
         print("model saved")
         
     # break; if the episode is over
-    if done: 
+    if done or episode_timesteps > max_ep_len: 
         # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
         print(f"Total T: {time_step+1} Episode Num: {episode_num+1} Episode T: {episode_timesteps} Reward: {current_ep_reward:.3f}")
         # Reset environment

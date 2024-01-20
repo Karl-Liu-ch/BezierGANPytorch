@@ -1,7 +1,3 @@
-"""
-Author(s): Wei Chen (wchen459@umd.edu)
-"""
-
 import os
 import itertools
 import time
@@ -23,115 +19,70 @@ from scipy.interpolate import splev, splprep, interp1d
 from scipy.integrate import cumtrapz
 
 from scipy.signal import savgol_filter
-from xfoil import XFoil
-from xfoil.model import Airfoil
+import platform
+if platform.system().lower() == 'windows':
+    import wexpect
+elif platform.system().lower() == 'linux':
+    import pexpect
 import gc
 
-def evalpreset(airfoil, Re = 4e5):
-    alfas = np.linspace(-1,1,5)
-    CD = []
-    for alfa in alfas:
-        xf = XFoil()
-        xf.print = 0
-        xf.airfoil = Airfoil(airfoil[:,0], airfoil[:,1])
-        xf.Re = Re
-        xf.max_iter = 500
-        _, cd, _, _ = xf.a(alfa)
-        CD.append(cd)
-        del xf
-        gc.collect()
-    i_nan = np.argwhere(np.isnan(CD))
-    a = np.delete(alfas, i_nan)
-    CD = np.delete(CD, i_nan)
-    try:
-        i_min = CD.argmin()
-        CD = CD[i_min]
-        a = a[i_min]
-    except:
-        CD = np.nan
-    return CD, a
-
-def evalperf(airfoil, cl = 0.65, Re = 5.8e4):
-    xf = XFoil()
-    xf.print = 0
-    xf.airfoil = Airfoil(airfoil[:,0], airfoil[:,1])
-    xf.Re = Re
-    xf.max_iter = 200
-    a, cd, cm, cp = xf.cl(cl)
-    del xf
+def compute_coeff(airfoil, reynolds=58000, mach=0, alpha=0, n_iter=2000, tmp_dir='tmp', cl = True):
+    create_dir(tmp_dir)
     gc.collect()
-    perf = cl/cd
-    return perf, a, cd
-
-def lowestD(airfoil, cl = 0.65, Re1 = 5.8e4, Re2 = 4e5, lamda = 3, check_thickness = True):
-    if detect_intersect(airfoil):
-        # print('Unsuccessful: Self-intersecting!')
-        af_BL, R_BL, a_BL, b_BL, perfBL, cdbl, CD_BL = airfoil, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
-    elif (cal_thickness(airfoil) < 0.06 or cal_thickness(airfoil) > 0.09) and check_thickness:
-        # print('Unsuccessful: Too thin!')
-        af_BL, R_BL, a_BL, b_BL, perfBL, cdbl, CD_BL = airfoil, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
-    elif np.abs(airfoil[0,0]-airfoil[-1,0]) > 0.01 or np.abs(airfoil[0,1]-airfoil[-1,1]) > 0.01:
-        # print('Unsuccessful:', (airfoil[0,0],airfoil[-1,0]), (airfoil[0,1],airfoil[-1,1]))
-        af_BL, R_BL, a_BL, b_BL, perfBL, cdbl, CD_BL = airfoil, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
-    else:
-        alpha = np.linspace(-3,0,num=4)
-        ail = [0.6, 0.65, 0.7]
-        R_BL = 10
-        CD_BL = 10
-        a_BL = -3
-        b_BL = 0.6
-        perfBL = 0
-        cdbl = 10
-        af_BL = airfoil
-        for a in alpha:
-            for b in ail:
-                af = setupflap(airfoil, a, b)
-                af = interpolate(af, 300, 3)
-                CD, _ = evalpreset(af, Re=Re2)
-                i = 0
-                while CD < 0.004 and (not np.isnan(CD)):
-                    i += 1
-                    print(not np.isnan(CD), CD)
-                    af = interpolate(af, 300 + i * 100, 3)
-                    CD, _ = evalpreset(af, Re=Re2)
-                    print(CD)
-                afc = setflap(af, -a, b)
-                perf, aa, cd = evalperf(afc, cl=cl, Re = Re1)
-                R = cd + CD * lamda
-                if R < R_BL:
-                    R_BL = R
-                    a_BL = a
-                    b_BL = b
-                    af_BL = af
-                    perfBL = perf
-                    cdbl = cd
-                    CD_BL = CD
-        print('perf: ', perfBL, 'R: ', R_BL)
-    return af_BL, R_BL, a_BL, b_BL, perfBL, cdbl, CD_BL
-
-def cal_baseline(lamda = 3):
-    af = np.loadtxt('BETTER/20150114-50 +2 d.dat', skiprows=1)
-    af = interpolate(af, 256, 3)
-    cl = 0.65
-    xf = XFoil()
-    xf.print = 0
-    xf.airfoil = Airfoil(af[:,0], af[:,1])
-    xf.Re = 5.8e4
-    xf.M = 0
-    xf.max_iter = 2000
-    a, cd, cm, cp = xf.cl(cl)
-    perf = cl/cd
-    cdc = cd
-    af = setflap(af, theta=-2, pose = 0.7)
-    xf.airfoil = Airfoil(af[:,0], af[:,1])
-    xf.Re = 4e5
-    xf.M = 0
-    xf.max_iter = 2000
-    a, cl, cd, cm, cp = xf.aseq(-2, 2, 0.5)
-    i = cd.argmin()
-    perf_bl = perf
-    R_bl = cdc + cd[i] * lamda
-    return perf_bl, R_bl
+    safe_remove('{}/airfoil.log'.format(tmp_dir))
+    fname = '{}/airfoil.dat'.format(tmp_dir)
+    with open(fname, 'wb') as f:
+        np.savetxt(f, airfoil)
+    try:
+        if platform.system().lower() == 'windows':
+            child = wexpect.spawn('xfoil')
+        if platform.system().lower() == 'linux':
+            child = pexpect.spawn('xfoil')
+        timeout = 10
+        
+        child.expect('XFOIL   c> ', timeout)
+        child.sendline('load {}/airfoil.dat'.format(tmp_dir))
+        child.expect('Enter airfoil name   s> ', timeout)
+        child.sendline('af')
+        child.expect('XFOIL   c> ', timeout)
+        child.sendline('OPER')
+        child.expect('.OPERi   c> ', timeout)
+        child.sendline('VISC {}'.format(reynolds))
+        child.expect('.OPERv   c> ', timeout)
+        child.sendline('ITER {}'.format(n_iter))
+        child.expect('.OPERv   c> ', timeout)
+        child.sendline('MACH {}'.format(mach))
+        child.expect('.OPERv   c> ', timeout)
+        child.sendline('PACC')
+        child.expect('Enter  polar save filename  OR  <return> for no file   s> ', timeout)
+        child.sendline('{}/airfoil.log'.format(tmp_dir))
+        child.expect('Enter  polar dump filename  OR  <return> for no file   s> ', timeout)
+        child.sendline()
+        child.expect('.OPERva   c> ', timeout)
+        if cl == True:
+            child.sendline('CL {}'.format(alpha))
+        else:
+            child.sendline('ALFA {}'.format(alpha))
+        child.expect('.OPERva   c> ', timeout)
+        child.sendline()
+        child.expect('XFOIL   c> ', timeout)
+        child.sendline('quit')
+        
+        child.close()
+    
+        res = np.loadtxt('{}/airfoil.log'.format(tmp_dir), skiprows=12)
+        CL = res[1]
+        CD = res[2]
+            
+    except Exception as ex:
+        # print(ex)
+        print('XFoil error!')
+        CL = np.nan
+        CD = np.nan
+        
+    safe_remove(':00.bl')
+    
+    return CL, CD
 
 def cal_thickness(airfoil):
     lh_idx = np.argmin(airfoil[:,0])
@@ -182,31 +133,10 @@ def setflap(airfoil, theta = -2, pose = 0.7):
     airfoil = interpolate(airfoil, 256, 3)
     airfoil = derotate(airfoil)
     airfoil = Normalize(airfoil)
-    airfoil = interpolate(airfoil, 256, 3)
     return airfoil
 
-def rotateflap(af, theta, pflap_i_down, phead_i, pflap_i_up, R, offset = 0):
-    airfoil = np.copy(af)
-    if theta < 0:
-        p_mid = airfoil[pflap_i_down,:]
-        airfoil[:pflap_i_down,:] = np.matmul(airfoil[:pflap_i_down,:] - p_mid, R) + p_mid
-        alpha = -np.arctan2((airfoil[0,1] - airfoil[phead_i,1] - offset), (airfoil[0,0] - airfoil[phead_i,0]))
-        c = np.cos(alpha)
-        s = np.sin(alpha)
-        R = np.array([[c, -s], [s, c]])
-        airfoil[phead_i:,:] = np.matmul(airfoil[phead_i:,:] - airfoil[phead_i,:], R) + airfoil[phead_i,:]
-    else:
-        p_mid = airfoil[pflap_i_up,:]
-        airfoil[pflap_i_up:,:] = np.matmul(airfoil[pflap_i_up:,:] - p_mid, R) + p_mid
-        alpha = -np.arctan2((airfoil[-1,1] - airfoil[phead_i,1] + offset), (airfoil[-1,0] - airfoil[phead_i,0]))
-        c = np.cos(alpha)
-        s = np.sin(alpha)
-        R = np.array([[c, -s], [s, c]])
-        airfoil[:phead_i,:] = np.matmul(airfoil[:phead_i,:] - airfoil[phead_i,:], R) + airfoil[phead_i,:]
-    return airfoil
-
-def setupflap(af, theta = -2, pose = 0.7):
-    airfoil = np.copy(af)
+def setupflap(airfoil, theta = -2, pose = 0.7):
+    airfoil = np.copy(airfoil)
     phead_i = airfoil[:,0].argmin()
     pflap_i_down = abs(airfoil[:phead_i,0] - pose).argmin()
     pflap_i_up = abs(airfoil[phead_i:,0] - pose).argmin() + phead_i
@@ -214,24 +144,26 @@ def setupflap(af, theta = -2, pose = 0.7):
     c = np.cos(theta)
     s = np.sin(theta)
     R = np.array([[c, -s], [s, c]])
-    offset = 0
-    af = rotateflap(airfoil, theta, pflap_i_down, phead_i, pflap_i_up, R, offset = offset)
-    while detect_intersect(af):
-        offset += 0.0002
-        af = rotateflap(airfoil, theta, pflap_i_down, phead_i, pflap_i_up, R, offset = offset)
-    airfoil = af
+    if theta < 0:
+        p_mid = airfoil[pflap_i_down,:]
+        airfoil[:pflap_i_down,:] = np.matmul(airfoil[:pflap_i_down,:] - p_mid, R) + p_mid
+        alpha = -np.arctan2((airfoil[0,1] - airfoil[phead_i,1]), (airfoil[0,0] - airfoil[phead_i,0]))
+        c = np.cos(alpha)
+        s = np.sin(alpha)
+        R = np.array([[c, -s], [s, c]])
+        airfoil[phead_i:,:] = np.matmul(airfoil[phead_i:,:] - airfoil[phead_i,:], R) + airfoil[phead_i,:]
+    else:
+        p_mid = airfoil[pflap_i_up,:]
+        airfoil[pflap_i_up:,:] = np.matmul(airfoil[pflap_i_up:,:] - p_mid, R) + p_mid
+        alpha = -np.arctan2((airfoil[-1,1] - airfoil[phead_i,1] + 0.0005), (airfoil[-1,0] - airfoil[phead_i,0]))
+        c = np.cos(alpha)
+        s = np.sin(alpha)
+        R = np.array([[c, -s], [s, c]])
+        airfoil[:phead_i,:] = np.matmul(airfoil[:phead_i,:] - airfoil[phead_i,:], R) + airfoil[phead_i,:]
     airfoil = interpolate(airfoil, 256, 3)
     airfoil = derotate(airfoil)
     airfoil = Normalize(airfoil)
-    airfoil = interpolate(airfoil, 256, 3)
     return airfoil
-
-def show_airfoil(af):
-    fig, axs = plt.subplots(1, 1)
-    axs.plot(af[:,0], af[:,1])
-    axs.set_aspect('equal', 'box')
-    fig.tight_layout()
-    plt.show()
 
 def delete_intersect(samples):
     indexs = []
@@ -276,7 +208,6 @@ def derotate(airfoil):
     return airfoil_R
 
 def Normalize(airfoil):
-    airfoil[:,0] -= airfoil[:,0].min()
     r = np.maximum(airfoil[0,0], airfoil[-1,0])
     r = float(1.0/r)
     return airfoil * r

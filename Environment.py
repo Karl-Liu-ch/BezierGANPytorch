@@ -9,6 +9,7 @@ from main import Normalize
 from scipy.signal import savgol_filter
 from main import *
 from utils import *
+# from simulation_win import evaluate as evaluate_xfoil
 device = "cuda" if torch.cuda.is_available() else "cpu"
 EPSILON = 1e-7
 latent_dim = 3
@@ -40,23 +41,17 @@ base_airfoil = np.loadtxt('BETTER/20150114-50 +2 d.dat', skiprows=1)
 base_airfoil = interpolate(base_airfoil, 256, 3)
 
 class OptimEnv():
-    def __init__(self):
-        self.cl = 0.65
+    def __init__(self, base_airfoil = base_airfoil, cl = 0.65, thickness = 0.058, Re1 = 58000, Re2 = 400000, alpha=0.01):
+        self.cl = cl
         self.R = 1
         self.base_airfoil = torch.from_numpy(base_airfoil).to(device)
-        self.alpha = 0.01
+        self.alpha = alpha
+        self.thickness = thickness
+        self.Re1 = Re1
+        self.Re2 = Re2
     
     def reset(self):
-        y_latent = np.random.uniform(low=bounds[0], high=bounds[1], size=(1, latent_dim))
-        noise = np.random.normal(scale=0.5, size=(1, noise_dim))
-        y_latent = torch.from_numpy(y_latent).to(device)
-        y_latent = y_latent.float()
-        noise = torch.from_numpy(noise).to(device)
-        noise = noise.float()
-        
-        self.noise = torch.concat([noise, y_latent], dim=-1)
-        self.airfoil = sample(generator, y_noise = self.noise)
-        self.airfoil = self.airfoil.reshape(1, 256, 2) * self.alpha + (1-self.alpha) * self.base_airfoil.reshape(1, 256, 2)
+        self.airfoil = self.base_airfoil.reshape(1, 256, 2)
         self.state = self.airfoil.reshape(512)
         return self.state.detach().cpu().numpy()
     
@@ -68,19 +63,20 @@ class OptimEnv():
         airfoil = self.airfoil.reshape(256, 2)
         airfoil = airfoil.detach().cpu().numpy()
         thickness = cal_thickness(airfoil)
-        perf, CD, af, R = evaluate(airfoil, self.cl, lamda=5, check_thickness=False)
+        perf, CD, af, R = evaluate(airfoil, self.cl, Re1 = self.Re1, Re2 = self.Re2, lamda=5, check_thickness=False)
+        # perf, CD, af, R = evaluate_xfoil(airfoil, self.cl, Re1 = self.Re1, Re2 = self.Re2, lamda=5, check_thickness=False)
         # print(f'perf: {perf}, R: {R}')
         if np.isnan(R):
-            reward = -1
+            reward = -2
         else:
-            reward = (0.042 - R) * 10 + thickness - 0.058
-        print(reward)
+            reward = ((0.042 - R) * 10 + thickness - self.thickness) * 100
+        # print(reward)
         if R < self.R:
             self.R = R
             np.savetxt('results/airfoilPPO.dat', airfoil, header='airfoilPPO', comments="")
         self.state = self.airfoil.reshape(512)
         
-        if perf > 50:
+        if R < 0.039 and perf > 38:
             done = True
             reward += 100
         else:

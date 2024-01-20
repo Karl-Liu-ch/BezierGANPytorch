@@ -1,9 +1,9 @@
 #!/bin/sh
 ### General options
 ### –- specify queue --
-#BSUB -q gpua100
+#BSUB -q gpuv100
 ### -- set the job Name --
-#BSUB -J bezier_bo
+#BSUB -J PPO_Diff
 ### -- ask for number of cores (default: 1) --
 #BSUB -n 8
 ### -- specify that the cores must be on the same host --
@@ -24,14 +24,18 @@
 #BSUB -B
 ### -- Specify the output and error file. %J is the job-id --
 ### -- -o and -e mean append, -oo and -eo mean overwrite --
-#BSUB -o bezier_bo%J.out
-#BSUB -e bezier_bo%J.err
+#BSUB -o PPO_Diff%J.out
+#BSUB -e PPO_Diff%J.err
 # -- end of LSF options --
+
+nvidia-smi
+# Load modules
 module load cuda/11.8
-module load cudnn/v8.9.1.23-prod-cuda-11.X 
+# module load cudnn/v8.8.0-prod-cuda-11.X
 cd /zhome/02/b/164706/
 source ./miniconda3/bin/activate
 conda activate pytorch
-cd /zhome/02/b/164706/Master_Courses/2023_Fall/BezierGANPytorch/
+
+cd /zhome/02/b/164706/Master_Courses/2023_Fall/BezierGANPytorch
 export PYTHONUNBUFFERED=1
-python -u bayesoptim/optimize_gan_bo_refine.py --n_eval 5000
+python -u PPO_continuous_main.py
