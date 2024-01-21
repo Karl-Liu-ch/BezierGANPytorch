@@ -8,7 +8,7 @@ import sklearn.gaussian_process as gp
 from sklearn.gaussian_process import GaussianProcessClassifier as GPC
 from pyDOE import lhs
 from bayesoptim.gp import GPR
-from bayesoptim.functions import AirfoilDiffusion
+from bayesoptim.functions import *
 
 def normalize(y, return_mean_std=False):
     y_mean = np.mean(y)
@@ -290,7 +290,8 @@ def optimize(n_eval, n_init_eval, func):
     return opt_x, opt_airfoil, opt_ys
 
 if __name__ == '__main__':
-    func = AirfoilDiffusion()
+    # func = AirfoilDiffusion()
+    func = AirfoilHickHenne()
     # opt_x, opt_airfoil, opt_ys = optimize(1000, 10, func)
     for i in range(10):
         successful = False

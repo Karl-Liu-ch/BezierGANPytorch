@@ -94,7 +94,14 @@ if __name__ == "__main__":
             xhat, yhat = savgol_filter((airfoil[:,0], airfoil[:,1]), 10, 3)
             airfoil[:,0] = xhat
             airfoil[:,1] = yhat
-            perf, CD, af, R = evaluate(airfoil, cl)
+            successful = False
+            while not successful:
+                try:
+                    perf, CD, af, R = evaluate(airfoil, cl)
+                    successful = True
+                except Exception as e:
+                    print(e)
+                    break
             if perf == np.nan:
                 pass
             else:

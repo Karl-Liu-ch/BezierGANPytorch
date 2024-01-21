@@ -75,7 +75,7 @@ def compute_coeff(airfoil, reynolds=58000, mach=0, alpha=0, n_iter=2000, tmp_dir
         CD = res[2]
             
     except Exception as ex:
-        # print(ex)
+        print(ex)
         print('XFoil error!')
         CL = np.nan
         CD = np.nan

@@ -9,10 +9,10 @@ import logging
 logging.basicConfig(filename='results/perfwin.log', encoding='utf-8', level=logging.DEBUG)
 from scipy.signal import savgol_filter
 from utils_win import *
-import argparse
-parser = argparse.ArgumentParser(description="DiffusionAirfoil")
-parser.add_argument('--method', type=str, default='1d')
-opt = parser.parse_args()
+# import argparse
+# parser = argparse.ArgumentParser(description="DiffusionAirfoil")
+# parser.add_argument('--method', type=str, default='1d')
+# opt = parser.parse_args()
 
 def evaluate(airfoil, cl = 0.65, Re1 = 5.8e4, Re2 = 4e5, lamda = 3, return_CL_CD=False, check_thickness = True):
         
@@ -117,15 +117,15 @@ if __name__ == "__main__":
         name = 'Airfoils'
         airfoilpath = 'H:/深度学习/Airfoils/'
     elif platform.system().lower() == 'linux':
-        if opt.method == '2d':
-            name = 'Airfoils2D'
-            airfoilpath = '/work3/s212645/DiffusionAirfoil/Airfoils/'
-        elif opt.method == '1d':
-            name = 'Airfoils1D'
-            airfoilpath = '/work3/s212645/DiffusionAirfoil/'+name+'/'
-        elif opt.method == 'bezier':
-            name = 'Airfoilsbezier'
-            airfoilpath = '/work3/s212645/BezierGANPytorch/Airfoils/'
+        # if opt.method == '2d':
+        #     name = 'Airfoils2D'
+        #     airfoilpath = '/work3/s212645/DiffusionAirfoil/Airfoils/'
+        # elif opt.method == '1d':
+        #     name = 'Airfoils1D'
+        #     airfoilpath = '/work3/s212645/DiffusionAirfoil/'+name+'/'
+        # elif opt.method == 'bezier':
+        name = 'Airfoilsbezier'
+        airfoilpath = '/work3/s212645/BezierGANPytorch/Airfoils/'
     best_airfoil = None
     try:
         log = np.loadtxt(f'results/{name}win_log.txt')

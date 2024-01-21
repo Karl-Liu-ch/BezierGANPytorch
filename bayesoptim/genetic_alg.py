@@ -1,5 +1,7 @@
+import sys
+sys.path.append('./')
 import numpy as np
-
+from bayesoptim.functions import *
     
 def perturb_individual(x0, perturb_type, perturb):
     assert perturb_type in ['relative', 'absolute']
@@ -96,7 +98,7 @@ def optimize(func, perturb_type, perturb, n_eval):
         best_inds.append(best_individual)
         best_perfs.append(best_perf)
         opt_perfs += [np.max(best_perfs)] * population_size # Best performance so far
-        print('%d: fittest %.2f' % (i+1, best_perf))
+        print('%d: fittest %.5f' % (i+1, best_perf))
         # No need to create next generation for the last generation
         if i < n_eval/population_size-1:
             next_generation = create_children(breeders, n_children)
@@ -111,3 +113,8 @@ def optimize(func, perturb_type, perturb, n_eval):
     
     return opt_x, opt_airfoil, opt_perfs
 
+if __name__ == '__main__':
+    # func = AirfoilDiffusion()
+    func = AirfoilHickHenne()
+    opt_x, opt_airfoil, opt_perfs = optimize(func, perturb_type='absolute', perturb=0.5, n_eval = 1000)
+    np.savetxt(f'bayesoptim/ga_hickhenne.dat', opt_airfoil, header=f'ga_hickhenne', comments="")

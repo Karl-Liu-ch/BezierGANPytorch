@@ -64,6 +64,10 @@ class AirfoilDiffusion(Airfoil):
         noise_bounds = np.array([-0.5, 0.5])
         noise_bounds = np.tile(noise_bounds, [self.noise_dim, 1])
         self.bounds = np.vstack((latent_bounds, noise_bounds))
+        bounds = (0.0, 1.0)
+        y_latent = np.random.uniform(low=bounds[0], high=bounds[1], size=(self.latent_dim))
+        noise = np.random.normal(scale=0.5, size=(self.noise_dim))
+        self.alpha0 = np.concatenate([y_latent, noise])
 
     def synthesize(self, x):
         x = torch.from_numpy(x).cuda()
@@ -75,3 +79,32 @@ class AirfoilDiffusion(Airfoil):
         af = x_fake_train.reshape(256, 2).detach().cpu().numpy()
         af[:,1] = af[:,1] * self.thickness / cal_thickness(af)
         return af
+     
+class AirfoilHickHenne(Airfoil):
+    def __init__(self, thickness = 0.065):
+        super().__init__()
+        self.thickness = thickness
+        self.dim = 30
+        self.bounds = np.array([[-1, 1]])
+        self.bounds = np.tile(self.bounds, [self.dim, 1])
+        airfoil = np.loadtxt('BETTER/20150114-50 +2 d.dat', skiprows=1)
+        airfoil = interpolate(airfoil, 256, 3)
+        self.af = airfoil
+        self.alpha0 = np.zeros([30])
+
+    def synthesize(self, x):
+        a_up0 = np.array([x[0] * 0.0001])
+        a_up1 = x[1:6] * 0.01
+        a_up2 = x[6:11] * 0.001
+        a_up3 = x[11:15] * 0.0001
+        a_up = np.concatenate([a_up0, a_up1, a_up2, a_up3])
+        a_low0 = np.array([x[15] * 0.0001])
+        a_low1 = x[16:21] * 0.01
+        a_low2 = x[21:26] * 0.001
+        a_low3 = x[26:] * 0.0001
+        a_low = np.concatenate([a_low0, a_low1, a_low2, a_low3])
+        af = np.copy(self.af)
+        af = mute_airfoil(af, a_up=a_up, a_low=a_low)
+        af[:,1] = af[:,1] * self.thickness / cal_thickness(af)
+        return af
+    
