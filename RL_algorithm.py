@@ -61,7 +61,7 @@ policy_kwargs = dict(
 )
 # env = OptimEnv()
 # env = HicksHenneEnv()
-env = AirfoilEnv(use_xfoil=opt.xfoil)
+env = AirfoilEnv()
 
 if opt.agent == 'ppo':
     # model = PPO("MlpPolicy", env, verbose=1)

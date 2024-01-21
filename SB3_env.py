@@ -340,7 +340,7 @@ class HicksHenneEnv(AirfoilEnv):
             # CD, _ = evalpreset(airfoil, Re=self.Re2)
             # R = cd + CD * self.lamda
             print('Successful: CL/CD={:.4f}'.format(perf))
-            # perf, CD, af, R = evaluate(airfoil, self.cl, Re1 = self.Re1, Re2 = self.Re2, lamda=self.lamda, check_thickness=False)
+            # perf, CD, af, R = evaluate(airfoil, self.cl, Re1 = self.Re1, Re2 = self.Re2, lamda=self.lamda, check_thickness=False, modify_thickness=True)
             successful = True
         except:
             successful = False

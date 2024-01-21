@@ -3,7 +3,7 @@ sys.path.append('./')
 import numpy as np
 from pyDOE import lhs
 from scipy.optimize import minimize
-from main import sample, generator
+from model import Generator
 import platform
 from simulation import evaluate
 import torch
@@ -13,6 +13,12 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 EPSILON = 1e-7
 latent_dim = 3
 noise_dim = 10
+generator = Generator(latent_dim=latent_dim, noise_dim=noise_dim, n_points=256).to(device)
+if platform.system().lower() == 'linux':
+    path = '/work3/s212645/BezierGANPytorch/checkpoint/'
+elif platform.system().lower() == 'windows':
+    path = 'H:/深度学习/checkpoint/'
+checkpoint_dir = path + "ResNet_{}_{}_{}".format(latent_dim, noise_dim, 256)
 
 class Airfoil(object):
     
@@ -23,7 +29,7 @@ class Airfoil(object):
             
     def __call__(self, x):
         x = np.array(x, ndmin=2)
-        y = - np.apply_along_axis(lambda x: evaluate(self.synthesize(x))[-1], 1, x)
+        y = - np.apply_along_axis(lambda x: evaluate(self.synthesize(x), modify_thickness=True)[-1], 1, x)
         self.y = np.squeeze(y)
         return self.y
     
@@ -56,6 +62,7 @@ class AirfoilDiffusion(Airfoil):
         super().__init__()
         self.thickness = thickness
         self.dim = 13
+        generator = eval(checkpoint_dir + '/generator.pth')
         self.model = generator
         self.latent_dim = 3
         self.noise_dim = 10
@@ -87,7 +94,9 @@ class AirfoilHickHenne(Airfoil):
         self.dim = 30
         self.bounds = np.array([[-1, 1]])
         self.bounds = np.tile(self.bounds, [self.dim, 1])
+        path = 'samples/DiffusionAirfoil1DTransform_001_-2.0_0.7F.dat'
         airfoil = np.loadtxt('BETTER/20150114-50 +2 d.dat', skiprows=1)
+        airfoil = np.loadtxt(path, skiprows=1)
         airfoil = interpolate(airfoil, 256, 3)
         self.af = airfoil
         self.alpha0 = np.zeros([30])

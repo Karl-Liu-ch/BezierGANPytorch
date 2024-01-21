@@ -2,6 +2,10 @@ import sys
 sys.path.append('./')
 import numpy as np
 from bayesoptim.functions import *
+import argparse
+parser = argparse.ArgumentParser(description="RL_algorithm")
+parser.add_argument('--method', type=str, default='gan')
+opt = parser.parse_args()
     
 def perturb_individual(x0, perturb_type, perturb):
     assert perturb_type in ['relative', 'absolute']
@@ -114,7 +118,18 @@ def optimize(func, perturb_type, perturb, n_eval):
     return opt_x, opt_airfoil, opt_perfs
 
 if __name__ == '__main__':
-    # func = AirfoilDiffusion()
-    func = AirfoilHickHenne()
-    opt_x, opt_airfoil, opt_perfs = optimize(func, perturb_type='absolute', perturb=0.5, n_eval = 1000)
-    np.savetxt(f'bayesoptim/ga_hickhenne.dat', opt_airfoil, header=f'ga_hickhenne', comments="")
+    if opt.method == 'gan':
+        func = AirfoilDiffusion()
+        name = 'bezier'
+    elif opt.method == 'hickhenne':
+        func = AirfoilHickHenne()
+        name = 'hickhenne'
+    for i in range(10):
+        successful = False
+        while not successful:
+            try:
+                opt_x, opt_airfoil, opt_perfs = optimize(func, perturb_type='absolute', perturb=0.2, n_eval = 2000)
+                np.savetxt(f'bayesoptim/ga_{name}_{i}.dat', opt_airfoil, header=f'ga_{name}_{i}', comments="")
+                successful = True
+            except Exception as e:
+                print(e)
