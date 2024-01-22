@@ -11,9 +11,9 @@ import sys
 sys.path.append('./')
 import os
 import time
-import argparse
 import numpy as np
 import matplotlib.pyplot as plt
+from option import args
 
 from bayesoptim.bayesian_opt import optimize as optimize_latent
 from bayesoptim.functions import AirfoilDiffusion
@@ -58,14 +58,6 @@ def optimize_overall(latent, noise0, perturb_type, perturb, n_eval, func):
 
 if __name__ == "__main__":
     
-    # Arguments
-    parser = argparse.ArgumentParser(description='Optimize')
-    parser.add_argument('--latent', type=int, default=3, help='latent dimension')
-    parser.add_argument('--noise', type=int, default=10, help='noise dimension')
-    parser.add_argument('--n_runs', type=int, default=10, help='number of runs')
-    parser.add_argument('--n_eval', type=int, default=1000, help='number of total evaluations per run')
-    args = parser.parse_args()
-    
     latent_dim = args.latent
     noise_dim = args.noise
     n_runs = args.n_runs
@@ -103,7 +95,7 @@ if __name__ == "__main__":
                 perturb_type = 'absolute'
                 perturb = np.append(0.1*np.ones(latent_dim), 1.0*np.ones(noise_dim))
                 opt_x, opt_airfoil, opt_perfs_overall = optimize_overall(opt_latent[:3], noise0, perturb_type, perturb, n_eval_overall, func)
-                np.savetxt(f'bayesoptim/bo_refine _{i}.dat', opt_airfoil, header=f'bo_refine{i}', comments="")
+                np.savetxt(f'bayesoptim/bo_refine_{i}.dat', opt_airfoil, header=f'bo_refine{i}', comments="")
                 end_time = time.time()
                 opt_x_runs.append(opt_x)
                 opt_airfoil_runs.append(opt_airfoil)

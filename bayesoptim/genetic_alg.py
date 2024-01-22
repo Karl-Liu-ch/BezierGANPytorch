@@ -2,10 +2,7 @@ import sys
 sys.path.append('./')
 import numpy as np
 from bayesoptim.functions import *
-import argparse
-parser = argparse.ArgumentParser(description="RL_algorithm")
-parser.add_argument('--method', type=str, default='gan')
-opt = parser.parse_args()
+from option import args as opt
     
 def perturb_individual(x0, perturb_type, perturb):
     assert perturb_type in ['relative', 'absolute']

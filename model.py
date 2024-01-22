@@ -286,6 +286,15 @@ class Discriminator(nn.Module):
 
         return d, q
 
+
+def loadmodel(model_path, latent_dim = 3, noise_dim = 10, n_points = 256):
+    print(model_path)
+    generator = Generator(latent_dim=latent_dim, noise_dim=noise_dim, n_points=n_points).to(device)
+    state_dict = torch.load(model_path)
+    generator.load_state_dict(state_dict)
+    generator.eval()
+    return generator
+
 if __name__ == '__main__':
     c = torch.randn(16, 3)
     z = torch.randn((16, 10))

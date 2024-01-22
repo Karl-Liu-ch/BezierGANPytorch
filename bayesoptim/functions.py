@@ -3,7 +3,7 @@ sys.path.append('./')
 import numpy as np
 from pyDOE import lhs
 from scipy.optimize import minimize
-from model import Generator
+from model import Generator, loadmodel
 import platform
 from simulation import evaluate
 import torch
@@ -13,12 +13,11 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 EPSILON = 1e-7
 latent_dim = 3
 noise_dim = 10
-generator = Generator(latent_dim=latent_dim, noise_dim=noise_dim, n_points=256).to(device)
 if platform.system().lower() == 'linux':
     path = '/work3/s212645/BezierGANPytorch/checkpoint/'
 elif platform.system().lower() == 'windows':
     path = 'H:/深度学习/checkpoint/'
-checkpoint_dir = path + "ResNet_{}_{}_{}".format(latent_dim, noise_dim, 256)
+checkpoint_dir = path + 'ResNet_{}_{}_{}'.format(latent_dim, noise_dim, 256)
 
 class Airfoil(object):
     
@@ -62,7 +61,7 @@ class AirfoilDiffusion(Airfoil):
         super().__init__()
         self.thickness = thickness
         self.dim = 13
-        generator = eval(checkpoint_dir + '/generator.pth')
+        generator = loadmodel(checkpoint_dir + '/generator.pth')
         self.model = generator
         self.latent_dim = 3
         self.noise_dim = 10
@@ -81,7 +80,7 @@ class AirfoilDiffusion(Airfoil):
         x = x.to(torch.float32)
         y_latent = x[:3].unsqueeze(dim=0)
         noise = x[3:].unsqueeze(dim=0)
-        x_fake_train, _, _, _, _ = generator(y_latent, noise)
+        x_fake_train, _, _, _, _ = self.model(y_latent, noise)
         x_fake_train = x_fake_train.squeeze(dim=-1)
         af = x_fake_train.reshape(256, 2).detach().cpu().numpy()
         af[:,1] = af[:,1] * self.thickness / cal_thickness(af)
@@ -96,7 +95,7 @@ class AirfoilHickHenne(Airfoil):
         self.bounds = np.tile(self.bounds, [self.dim, 1])
         path = 'samples/DiffusionAirfoil1DTransform_001_-2.0_0.7F.dat'
         airfoil = np.loadtxt('BETTER/20150114-50 +2 d.dat', skiprows=1)
-        airfoil = np.loadtxt(path, skiprows=1)
+        # airfoil = np.loadtxt(path, skiprows=1)
         airfoil = interpolate(airfoil, 256, 3)
         self.af = airfoil
         self.alpha0 = np.zeros([30])
