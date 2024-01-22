@@ -187,7 +187,7 @@ class AirfoilEnv(gym.Env):
         info = {}
         af = np.copy(airfoil)
         af[:,0] = af[:,0] * 2.0 - 1.0
-        af[:,1] = af[:,1] / self.thickness
+        af[:,1] = af[:,1] * 10.0
         self.state = torch.from_numpy(af).to(device) 
         return self.state.reshape(1,512).cpu().numpy(), info
     
@@ -240,7 +240,7 @@ class AirfoilEnv(gym.Env):
             np.savetxt('results/airfoilPPO.dat', airfoil, header='airfoilPPO', comments="")
         af = np.copy(airfoil)
         af[:,0] = af[:,0] * 2.0 - 1.0
-        af[:,1] = af[:,1] / self.thickness
+        af[:,1] = af[:,1] * 10.0
         self.state = torch.from_numpy(af).to(device) 
         # self.state = self.airfoil.reshape(512)
         

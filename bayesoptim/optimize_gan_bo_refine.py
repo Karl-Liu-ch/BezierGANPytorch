@@ -40,7 +40,7 @@ def optimize_overall(latent, noise0, perturb_type, perturb, n_eval, func):
         best_inds.append(best_individual)
         best_perfs.append(best_perf)
         opt_perfs += [np.max(best_perfs)] * population_size # Best performance so far
-        print('%d: fittest %.2f' % (i+1, best_perf))
+        print('%d: fittest %.6f' % (i+1, best_perf))
         # No need to create next generation for the last generation
         if i < n_eval/population_size-1:
             next_generation = create_children(breeders, n_children)
