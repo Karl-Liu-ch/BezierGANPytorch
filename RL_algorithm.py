@@ -59,8 +59,7 @@ policy_kwargs = dict(
     features_extractor_kwargs=dict(features_dim=256),
     net_arch=[dict(pi=[256, 256], vf=[256, 256])]
 )
-# env = OptimEnv()
-# env = HicksHenneEnv()
+env = OptimEnv()
 env = AirfoilEnv()
 
 if opt.agent == 'ppo':
@@ -71,7 +70,7 @@ if opt.agent == 'ppo':
         model.load(path)
     except Exception as e:
         print(e)
-    model.learn(total_timesteps=100_000)
+    model.learn(total_timesteps=10000)
     model.save(path)
 
 elif opt.agent == 'sac':

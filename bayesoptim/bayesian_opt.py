@@ -294,11 +294,11 @@ if __name__ == '__main__':
     func = AirfoilHickHenne()
     # opt_x, opt_airfoil, opt_ys = optimize(1000, 10, func)
     for i in range(10):
-        successful = False
-        while not successful:
-            try:
-                opt_x, opt_airfoil, opt_ys = optimize(1000, 10, func)
-                np.savetxt(f'bayesoptim/bo_{i}.dat', opt_airfoil, header=f'bo_{i}', comments="")
-                successful = True
-            except:
-                pass
+        opt_x, opt_airfoil, opt_ys = optimize(1000, 10, func)
+        np.savetxt(f'bayesoptim/bo_hickhenne_{i}.dat', opt_airfoil, header=f'bo_{i}', comments="")
+        successful = True
+        # successful = False
+        # while not successful:
+        #     try:
+        #     except:
+        #         pass

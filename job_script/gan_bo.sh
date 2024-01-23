@@ -38,4 +38,4 @@ conda activate pytorch
 
 cd /zhome/02/b/164706/Master_Courses/2023_Fall/BezierGANPytorch
 export PYTHONUNBUFFERED=1
-python -u bayesoptim/optimize_gan_bo_refine.py --n_eval 2000
+python -u bayesoptim/optimize_gan_bo_refine.py --n_eval 3000

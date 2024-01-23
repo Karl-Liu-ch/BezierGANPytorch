@@ -55,7 +55,7 @@ class OptimEnv(gym.Env):
                 # self.airfoil = torch.from_numpy(self.airfoil).to(device)
 
                 self.airfoil = self.base_airfoil.reshape(1, 1, 512)
-                self.state = self.airfoil.reshape(512)
+                # self.state = self.airfoil.reshape(512)
 
                 airfoil = self.airfoil.reshape(1, 256, 2)
                 airfoil = airfoil.cpu().numpy()
@@ -75,7 +75,11 @@ class OptimEnv(gym.Env):
         self.Rbl = R
         self.R = R
         info = {}
-        return self.state.reshape(1,512).cpu().numpy(), info
+        af = np.copy(airfoil)
+        af[:,0] = af[:,0] * 2.0 - 1.0
+        af[:,1] = af[:,1] * 10.0
+        self.state = af
+        return self.state.reshape(1,512), info
     
     def step(self, action):
         self.steps += 1
@@ -96,47 +100,47 @@ class OptimEnv(gym.Env):
         airfoil = airfoil[0]
         airfoil = derotate(airfoil)
         airfoil = Normalize(airfoil)
-        successful = False
-        try:
-            perf, _, cd = evalperf(airfoil, cl = self.cl, Re = self.Re1)
-            airfoil = setflap(airfoil, theta=-2)
-            CD, _ = evalpreset(airfoil, Re=self.Re2)
-            R = cd + CD * self.lamda
-            print('Successful: CL/CD={:.4f}, R={}'.format(perf, R))
-            # perf, CD, af, R = evaluate(airfoil, self.cl, Re1 = self.Re1, Re2 = self.Re2, lamda=self.lamda, check_thickness=False)
-            successful = True
-        except:
-            successful = False
-            R = np.nan
+        perf, _, cd = evalperf(airfoil, cl = self.cl, Re = self.Re1)
+        airfoil = setflap(airfoil, theta=-2)
+        CD, _ = evalpreset(airfoil, Re=self.Re2)
+        R = cd + CD * self.lamda
+        print('Successful: CL/CD={:.4f}, R={}'.format(perf, R))
+        reward = 0
+        reward_final = 0
         if np.isnan(R):
-            reward = -1
-            reward_final = -1
+            reward = -0.1
+            reward_final = -0.1
         else:
-            reward_final = (self.Rbl - R) * 100
-            reward = 0.01 / R
+            reward_final = (self.Rbl / R) * 10
+            reward = (self.Rbl / R) ** 10 / 2.0
             self.R_prev = R
-        # print(reward)
+        print(reward)
         if R < self.R:
             self.R = R
             np.savetxt('results/airfoilPPO.dat', airfoil, header='airfoilPPO', comments="")
-        self.state = self.airfoil.reshape(512)
+        af = np.copy(airfoil)
+        af[:,0] = af[:,0] * 2.0 - 1.0
+        af[:,1] = af[:,1] * 10.0
+        self.state = af
+        # self.state = self.airfoil.reshape(512)
         
         truncated = False
         done = False
-        if R < 0.0166 + 0.004852138459682465 * self.lamda and perf > 40:
+        if R < 0.016 + 0.004852138459682465 * self.lamda and perf > 41:
             done = True
-            reward += 100
+            reward += self.maxsteps + 10 - self.steps
             truncated = False
+            print('finished')
         if self.steps > self.maxsteps:
             done = True
             truncated = True
             reward += reward_final
-        reward_final = {'reward_final': reward_final}
-        if not successful:
-            reward = -10
-            done = True
-            truncated = True
-        return self.state.reshape(1,512).detach().cpu().numpy(), reward, done, truncated, reward_final
+            print('finished')
+        # if not successful:
+        #     # reward = -10
+        #     done = True
+        #     truncated = True
+        return self.state.reshape(1,512), reward, done, truncated, reward_final
 
 
 class AirfoilEnv(gym.Env):
@@ -173,17 +177,17 @@ class AirfoilEnv(gym.Env):
                     perf, cd = evalperf_win(airfoil, cl = self.cl, Re = self.Re1)
                 else:
                     perf, _, cd = evalperf(airfoil, cl = self.cl, Re = self.Re1)
-                # airfoil = setflap(airfoil, theta=-2)
-                # CD, _ = evalpreset(airfoil, Re=self.Re2)
-                # R = cd + CD * self.lamda
-                if not np.isnan(perf):
+                airfoil = setflap(airfoil, theta=-2)
+                CD, _ = evalpreset(airfoil, Re=self.Re2)
+                R = cd + CD * self.lamda
+                if not np.isnan(R):
                     successful = True
-                    print('Reset Successful: CL/CD={:.4f}'.format(perf))
+                    print('Reset Successful: CL/CD={:.4f}, R={}'.format(perf, R))
             except Exception as e:
                 print(e)
-        self.perf_prev = perf
-        self.perfbl = perf
-        self.perf = perf
+        self.perf_prev = R
+        self.perfbl = R
+        self.perf = R
         info = {}
         af = np.copy(airfoil)
         af[:,0] = af[:,0] * 2.0 - 1.0
@@ -212,31 +216,28 @@ class AirfoilEnv(gym.Env):
         airfoil = Normalize(airfoil)
         successful = False
         try:
-            if self.use_xfoil:
-                perf, cd = evalperf_win(airfoil, cl = self.cl, Re = self.Re1)
-            else:
-                perf, _, cd = evalperf(airfoil, cl = self.cl, Re = self.Re1)
-            # airfoil = setflap(airfoil, theta=-2)
-            # CD, _ = evalpreset(airfoil, Re=self.Re2)
-            # R = cd + CD * self.lamda
-            print('Successful: CL/CD={:.4f}'.format(perf))
+            perf, _, cd = evalperf(airfoil, cl = self.cl, Re = self.Re1)
+            airfoil = setflap(airfoil, theta=-2)
+            CD, _ = evalpreset(airfoil, Re=self.Re2)
+            R = cd + CD * self.lamda
             # perf, CD, af, R = evaluate(airfoil, self.cl, Re1 = self.Re1, Re2 = self.Re2, lamda=self.lamda, check_thickness=False)
+            print('Successful: CL/CD={:.4f}, R={}'.format(perf, R))
             successful = True
         except:
             successful = False
-            perf = np.nan
+            R = np.nan
         reward = 0
         reward_final = 0
-        if np.isnan(perf):
+        if np.isnan(R):
             reward = -0.1
             reward_final = -0.1
         else:
-            reward_final = (perf / self.perfbl) * 10
-            reward = (perf / 39.0) ** 10 / 2.0
-            self.perf_prev = perf
+            reward_final = (self.perfbl / R) * 10
+            reward = (self.perfbl / R) ** 10 / 2.0
+            self.perf_prev = R
         print(reward)
-        if perf > self.perf:
-            self.perf = perf
+        if R < self.perf:
+            self.perf = R
             np.savetxt('results/airfoilPPO.dat', airfoil, header='airfoilPPO', comments="")
         af = np.copy(airfoil)
         af[:,0] = af[:,0] * 2.0 - 1.0
@@ -246,7 +247,7 @@ class AirfoilEnv(gym.Env):
         
         truncated = False
         done = False
-        if perf > 41:
+        if R < 0.016 + 0.004852138459682465 * self.lamda and perf > 41:
             done = True
             reward += self.maxsteps + 10 - self.steps
             truncated = False
