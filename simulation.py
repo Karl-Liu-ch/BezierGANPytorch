@@ -8,8 +8,7 @@ logging.basicConfig(filename='results/perf.log', encoding='utf-8', level=logging
 from utils import *
 import gc
 
-def evaluate(airfoil, cl = 0.65, Re1 = 5.8e4, Re2 = 4e5, lamda = 5, thickness = 0.06, return_CL_CD=False, check_thickness = True, modify_thickness = False):
-        
+def evaluate(airfoil, mass = 0.22, diameter = 0.135, area = 0.194, Re2 = 4e5, lamda = 5, thickness = 0.058, return_CL_CD=False, check_thickness = True, modify_thickness = False):
     if detect_intersect(airfoil):
         # print('Unsuccessful: Self-intersecting!')
         perf = np.nan
@@ -46,16 +45,17 @@ def evaluate(airfoil, cl = 0.65, Re1 = 5.8e4, Re2 = 4e5, lamda = 5, thickness = 
             CD = np.nan
             
         airfoil = setflap(airfoil, theta=2)
-        perf, _, cd = evalperf(airfoil, cl = cl, Re = Re1)
+        perf = type2_simu(airfoil, mass, diameter, area)
+        cd = 0.65 / perf
         R = cd + CD * lamda
         if R < 0.015 + 0.004852138459682465 * lamda and perf < 37:
             print(f'R: {R}, perf: {perf}, change reynolds')
             re2 = Re2 + 1000
-            perf, CD, airfoil, R = evaluate(af, cl = 0.65, Re1 = 5.8e4, Re2 = re2, lamda = 3, return_CL_CD=False, check_thickness = True)
+            perf, CD, airfoil, R = evaluate(af, mass = mass, diameter = diameter, area = area, Re2 = re2, lamda = lamda, return_CL_CD=return_CL_CD, check_thickness = check_thickness)
         if perf < -100 or perf > 300 or cd < 1e-3:
             perf = np.nan
         elif not np.isnan(perf):
-            print('Successful: CL/CD={:.4f}, R={}'.format(perf, R))
+            print('Successful: CL/CD={:.4f}, R={}, launch cd: {}'.format(perf, R, CD))
             
     if return_CL_CD:
         return perf, cl.max(), cd.min()

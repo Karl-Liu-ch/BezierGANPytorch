@@ -119,7 +119,7 @@ if __name__ == '__main__':
         func = AirfoilDiffusion()
         name = 'bezier'
     elif opt.method == 'hickhenne':
-        func = AirfoilHickHenne()
+        func = AirfoilHickHenneP5B()
         name = 'hickhenne'
     for i in range(10):
         successful = False

@@ -26,8 +26,17 @@ def normalize_af(af):
     af /= (af[:,0].max() - af[:,0].min())
     return af
 
+v = 5.3
+mass = 0.32
+area = 0.22
+d = 0.17
+reynolds = reynolds_pipe(velocity=v, diameter=d)
+cl = mode_cl(velocity=v, area=area, mass = mass)
+
 class OptimEnv(gym.Env):
-    def __init__(self, base_airfoil = base_airfoil, cl = 0.65, thickness = 0.06, maxsteps = 50, Re1 = 58000, Re2 = 400000, lamda = 5, alpha=0.2, mode = '2d'):
+    def __init__(self, base_airfoil = base_airfoil, cl = cl, thickness = 0.058, maxsteps = 50, Re1 = reynolds, Re2 = 400000, lamda = 5, alpha=0.2, mode = '2d', use_xfoil = False):
+        base_airfoil = np.loadtxt('bayesoptim/bo_refine_2.dat', skiprows=1)
+        base_airfoil = interpolate(base_airfoil, 256, 3)
         self.cl = cl
         self.base_airfoil = torch.from_numpy(base_airfoil).to(device)
         self.alpha = alpha
@@ -41,45 +50,39 @@ class OptimEnv(gym.Env):
         self.steps = 0
         self.maxsteps = maxsteps
         self.lamda = lamda
+        self.use_xfoil = use_xfoil
     
     def reset(self, seed=None, options=None):
         self.steps = 0
         successful = False
         while not successful:
             try:
-                # self.airfoil = Diff1D_transform.sample(batch_size=1, channels=1).reshape(256, 2).cpu().numpy()
-                # self.airfoil[:,1] = self.airfoil[:,1] * self.thickness / cal_thickness(self.airfoil)
-                # self.airfoil[:,0] -= self.airfoil[:,0].min()
-                # self.airfoil /= (self.airfoil[:,0].max() - self.airfoil[:,0].min())
-                # self.airfoil = self.airfoil.reshape(1, 1, 512)
-                # self.airfoil = torch.from_numpy(self.airfoil).to(device)
-
                 self.airfoil = self.base_airfoil.reshape(1, 1, 512)
-                # self.state = self.airfoil.reshape(512)
+                self.state = self.airfoil.reshape(512)
 
                 airfoil = self.airfoil.reshape(1, 256, 2)
                 airfoil = airfoil.cpu().numpy()
                 airfoil = airfoil[0]
                 airfoil = derotate(airfoil)
                 airfoil = normalize_af(airfoil)
-                perf, _, cd = evalperf(airfoil, cl = self.cl, Re = self.Re1)
-                airfoil = setflap(airfoil, theta=-2)
-                CD, _ = evalpreset(airfoil, Re=self.Re2)
-                R = cd + CD * self.lamda
-                if not np.isnan(R):
+                if self.use_xfoil:
+                    perf, cd = evalperf_win(airfoil, cl = self.cl, Re = self.Re1)
+                else:
+                    perf, _, cd = evalperf(airfoil, cl = self.cl, Re = self.Re1)
+                if not np.isnan(perf):
                     successful = True
-                    print('Reset Successful: CL/CD={:.4f}, R={}'.format(perf, R))
+                    print('Reset Successful: CL/CD={:.4f}'.format(perf))
             except Exception as e:
                 print(e)
-        self.R_prev = R
-        self.Rbl = R
-        self.R = R
+        self.perf_prev = perf
+        self.perfbl = perf
+        self.perf = perf
         info = {}
         af = np.copy(airfoil)
         af[:,0] = af[:,0] * 2.0 - 1.0
         af[:,1] = af[:,1] * 10.0
-        self.state = af
-        return self.state.reshape(1,512), info
+        self.state = torch.from_numpy(af).to(device) 
+        return self.state.reshape(1,512).cpu().numpy(), info
     
     def step(self, action):
         self.steps += 1
@@ -100,47 +103,49 @@ class OptimEnv(gym.Env):
         airfoil = airfoil[0]
         airfoil = derotate(airfoil)
         airfoil = Normalize(airfoil)
-        perf, _, cd = evalperf(airfoil, cl = self.cl, Re = self.Re1)
-        airfoil = setflap(airfoil, theta=-2)
-        CD, _ = evalpreset(airfoil, Re=self.Re2)
-        R = cd + CD * self.lamda
-        print('Successful: CL/CD={:.4f}, R={}'.format(perf, R))
+        successful = False
+        try:
+            perf, _, cd = evalperf(airfoil, cl = self.cl, Re = self.Re1)
+            print('Successful: CL/CD={:.4f}'.format(perf))
+            successful = True
+        except:
+            successful = False
+            perf = np.nan
         reward = 0
         reward_final = 0
-        if np.isnan(R):
+        if np.isnan(perf):
             reward = -0.1
             reward_final = -0.1
         else:
-            reward_final = (self.Rbl / R) * 10
-            reward = (self.Rbl / R) ** 10 / 2.0
-            self.R_prev = R
+            reward_final = (perf / self.perfbl) * 10
+            reward = (perf / self.perfbl) ** 10 / 2.0
+            self.perf_prev = perf
         print(reward)
-        if R < self.R:
-            self.R = R
+        if perf > self.perf:
+            self.perf = perf
             np.savetxt('results/airfoilPPO.dat', airfoil, header='airfoilPPO', comments="")
         af = np.copy(airfoil)
         af[:,0] = af[:,0] * 2.0 - 1.0
         af[:,1] = af[:,1] * 10.0
-        self.state = af
+        self.state = torch.from_numpy(af).to(device) 
         # self.state = self.airfoil.reshape(512)
         
         truncated = False
         done = False
-        if R < 0.016 + 0.004852138459682465 * self.lamda and perf > 41:
+        if perf > 50:
             done = True
             reward += self.maxsteps + 10 - self.steps
             truncated = False
-            print('finished')
         if self.steps > self.maxsteps:
             done = True
             truncated = True
             reward += reward_final
-            print('finished')
-        # if not successful:
-        #     # reward = -10
-        #     done = True
-        #     truncated = True
-        return self.state.reshape(1,512), reward, done, truncated, reward_final
+        if not successful:
+            # reward = -10
+            done = True
+            truncated = True
+        reward_final = {'reward_final': reward_final}
+        return self.state.reshape(1,512).detach().cpu().numpy(), reward, done, truncated, reward_final
 
 
 class AirfoilEnv(gym.Env):

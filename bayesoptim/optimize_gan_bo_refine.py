@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from option import args
 
 from bayesoptim.bayesian_opt import optimize as optimize_latent
-from bayesoptim.functions import AirfoilDiffusion
+from bayesoptim.functions import *
 from bayesoptim.genetic_alg import generate_first_population, select, create_children, mutate_population
 
 def optimize_overall(latent, noise0, perturb_type, perturb, n_eval, func):
@@ -86,11 +86,13 @@ if __name__ == "__main__":
             try:
                 start_time = time.time()
                 # Optimize in the latent space
-                func = AirfoilDiffusion()
+                # func = AirfoilDiffusion()
+                func = AirfoilP5B()
                 opt_latent, opt_airfoil, opt_perfs_latent = optimize_latent(n_eval_latent, n_init_eval_latent, func)
                 np.savetxt(f'bayesoptim/bo_{i}.dat', opt_airfoil, header=f'bo_{i}', comments="")
                 # Optimize in the latent+noise combined space
-                func = AirfoilDiffusion()
+                # func = AirfoilDiffusion()
+                func = AirfoilP5B()
                 noise0 = np.zeros(noise_dim)
                 perturb_type = 'absolute'
                 perturb = np.append(0.1*np.ones(latent_dim), 1.0*np.ones(noise_dim))
